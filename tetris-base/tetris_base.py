@@ -71,7 +71,34 @@ class Tetris:
         """User Actions: Right, Left, Down, """
 
 def main():
-    return 0
+    import pygame
+
+    pygame.init()
+    cell = 30
+
+    screen = pygame.display.set_mode((WIDTH * cell, HEIGHT * cell + 55))
+    pygame.display.set_caption("Tetris")
+    clock = pygame.time.Clock()
+    font = pygame.font.SysFont(None, 28)
+    game = Tetris()
+    fall_time = 0
+    running = True
+
+    # Main game loop: handle input -> apply gravity -> render board.
+    while running:
+        elapsed = clock.tick(60)  # Time elapsed since the previous frame (ms).
+        fall_time += elapsed
+        # Read window-close and keyboard events.
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            
+
+    
+
+    
+
+    pygame.quit()
 
 
 if __name__ == "__main__":
