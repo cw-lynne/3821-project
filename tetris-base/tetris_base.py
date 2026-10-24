@@ -35,9 +35,37 @@ class Tetris:
 
     def spawn(self):
         """ Randomise falling pieces """
+        self.kind = random.randrange(len(SHAPES))
+        self.piece = [row[:] for row in SHAPES[self.kind]]
+        self.x = WIDTH // 2 - len(self.piece[0]) // 2
+        self.y = 0
+        if not self.check_valid(self.piece, self.x, self.y):
+            self.game_over = True
 
-    def move(self):
+    def check_valid(self, piece, x, y):
+        # dy/dx are positions *inside the piece*, not on the board.
+        for dy, row in enumerate(piece):
+            for dx, cell in enumerate(row):
+                # Ignore empty squares of the piece shape.
+                if not cell:
+                    continue  
+                # Convert piece-local coordinates into board coordinates.
+                px, py = x + dx, y + dy
+                # Reject anything outside the left/right edges or below the floor.
+                if px < 0 or px >= WIDTH or py >= HEIGHT:
+                    return False
+                # Reject collisions with cells from previously locked pieces.
+                if py >= 0 and self.board[py][px]:
+                    return False
+        return True
+
+    def move(self, dx, dy):
         """ Move falling pieces """
+        if self._valid(self.piece, self.x + dx, self.y + dy):
+            self.x += dx
+            self.y += dy
+            return True
+        return False
 
     def step(self):
         """User Actions: Right, Left, Down, """
