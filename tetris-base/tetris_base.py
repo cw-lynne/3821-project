@@ -22,7 +22,25 @@ COLORS = [
 
 class Tetris:
     def __init__(self):
-        return 0
+        self.start()
+
+    def start(self):
+        """ Clears board and spawns a new piece """
+        self.board = [[0] * WIDTH for _ in range(HEIGHT)]
+        self.score = 0
+        self.lines_cleared = 0
+        self.game_over = False
+        self.spawn()
+        return self
+
+    def spawn(self):
+        """ Randomise falling pieces """
+
+    def move(self):
+        """ Move falling pieces """
+
+    def step(self):
+        """User Actions: Right, Left, Down, """
 
 def main():
     return 0
