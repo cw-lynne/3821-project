@@ -110,10 +110,23 @@ def main():
             game.step("tick")
             fall_time = 0
 
+        display = [row[:] for row in state["board"]]
+        if not game.game_over:
+            for dy, row in enumerate(game.piece):
+                for dx, filled in enumerate(row):
+                    if filled and 0 <= game.y + dy < HEIGHT:
+                        display[game.y + dy][game.x + dx] = game.kind + 1
+
+        for y, row in enumerate(display):
+            for x, value in enumerate(row):
+                rect = pygame.Rect(x * cell, y * cell, cell, cell)
+                pygame.draw.rect(screen, COLORS[value - 1] if value else (31, 35, 45), rect)
+                pygame.draw.rect(screen, (56, 60, 72), rect, 1)
+        
         screen.fill((18, 20, 28))
         state = game.get_state()
 
-        status = f"Score: {game.score}   Lines: {game.lines}"
+        status = f"Score: {game.score}   Lines Cleared: {game.lines_cleared}"
         if game.game_over:
             status = "GAME OVER  |  R to restart"
         screen.blit(font.render(status, True, (245, 245, 245)), (10, HEIGHT * cell + 14))
