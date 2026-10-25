@@ -178,8 +178,7 @@ def main():
                 rect = pygame.Rect(x * cell, y * cell, cell, cell)
                 pygame.draw.rect(screen, COLORS[value - 1] if value else (31, 35, 45), rect)
                 pygame.draw.rect(screen, (56, 60, 72), rect, 1)
-        
-        screen.fill((18, 20, 28))
+
         state = game.get_state()
 
         status = f"Score: {game.score}   Lines Cleared: {game.lines_cleared}"
