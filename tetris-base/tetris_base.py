@@ -61,14 +61,11 @@ class Tetris:
 
     def move(self, dx, dy):
         """ Move falling pieces """
-        if self._valid(self.piece, self.x + dx, self.y + dy):
+        if self.check_valid(self.piece, self.x + dx, self.y + dy):
             self.x += dx
             self.y += dy
             return True
         return False
-
-    def step(self):
-        """User Actions: Right, Left, Down, """
 
     def lock(self):
         """Freeze a landed piece, remove complete rows, and spawn the next."""
@@ -82,17 +79,47 @@ class Tetris:
         cleared = HEIGHT - len(remaining)  # Number of full rows removed.
         # Add empty rows at the top, so the board stays 20 rows tall.
         self.board = [[0] * WIDTH for _ in range(cleared)] + remaining
-        self.lines += cleared
+        self.lines_cleared += cleared
         # Standardized simple scoring: 0, 100, 300, 500, 800 for 0–4 lines.
         self.score += [0, 100, 300, 500, 800][cleared]
         self.spawn()
+
+    def step(self, action='tick'):
+        """User Actions: Right, Left, Down, """
+        if self.game_over:
+            return self.get_state(), 0, True
+        old_lines = self.lines_cleared # Needed to calculate this action's reward.
+        # Dispatch an action to its corresponding piece movement.
+        if action == "left":
+            self.move(-1, 0)
+        elif action == "right":
+            self.move(1, 0)
+        elif action == "rotate":
+            # Rotate the shape matrix 90 degrees clockwise.
+            # This simple version has no wall kicks (rotation can be blocked).
+            rotated = [list(row) for row in zip(*self.piece[::-1])]
+            if self.check_valid(rotated, self.x, self.y):
+                self.piece = rotated
+        elif action in ("down", "tick"):
+            # Both soft-drop and automatic gravity descend by one row.
+            if not self.move(0, 1):
+                self.lock()
+        elif action == "drop":
+            # Hard drop: descend until the next move would collide.
+            while self.move(0, 1):
+                pass
+            self.lock()
+        else:
+            raise ValueError(f"Unknown action: {action}")
+        # The reward is lines cleared by this action, NOT total score.
+        return self.get_state(), self.lines_cleared - old_lines, self.game_over
 
     def get_state(self):
         return {
             "board": [row[:] for row in self.board],
             "piece": [row[:] for row in self.piece],
             "x": self.x, "y": self.y,
-            "score": self.score, "lines": self.line_cleared,
+            "score": self.score, "lines": self.lines_cleared,
             "game_over": self.game_over,
         }
 
@@ -120,7 +147,7 @@ def main():
                 running = False
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
-                    game.reset()
+                    game.start()
                     fall_time = 0
                 elif not game.game_over:
                     # Translate keyboard keys into actions for Tetris.step().
@@ -135,6 +162,9 @@ def main():
         if fall_time >= 500 and not game.game_over:
             game.step("tick")
             fall_time = 0
+
+        screen.fill((18, 20, 28))
+        state = game.get_state()
 
         display = [row[:] for row in state["board"]]
         if not game.game_over:
