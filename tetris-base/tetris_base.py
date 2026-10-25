@@ -70,6 +70,32 @@ class Tetris:
     def step(self):
         """User Actions: Right, Left, Down, """
 
+    def lock(self):
+        """Freeze a landed piece, remove complete rows, and spawn the next."""
+        for dy, row in enumerate(self.piece):
+            for dx, cell in enumerate(row):
+                if cell:
+                    # Store 1–7: nonzero means occupied and determines color.
+                    self.board[self.y + dy][self.x + dx] = self.kind + 1
+        # all(row) is True if every cell in a row is nonzero (full).
+        remaining = [row for row in self.board if not all(row)]
+        cleared = HEIGHT - len(remaining)  # Number of full rows removed.
+        # Add empty rows at the top, so the board stays 20 rows tall.
+        self.board = [[0] * WIDTH for _ in range(cleared)] + remaining
+        self.lines += cleared
+        # Standardized simple scoring: 0, 100, 300, 500, 800 for 0–4 lines.
+        self.score += [0, 100, 300, 500, 800][cleared]
+        self.spawn()
+
+    def get_state(self):
+        return {
+            "board": [row[:] for row in self.board],
+            "piece": [row[:] for row in self.piece],
+            "x": self.x, "y": self.y,
+            "score": self.score, "lines": self.line_cleared,
+            "game_over": self.game_over,
+        }
+
 def main():
     import pygame
 
