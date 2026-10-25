@@ -92,11 +92,32 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    game.reset()
+                    fall_time = 0
+                elif not game.game_over:
+                    # Translate keyboard keys into actions for Tetris.step().
+                    keys = {
+                        pygame.K_LEFT: "left", pygame.K_RIGHT: "right",
+                        pygame.K_UP: "rotate", pygame.K_DOWN: "down",
+                        pygame.K_SPACE: "drop",
+                    }
+                    if event.key in keys:
+                        game.step(keys[event.key])
 
-    
+        if fall_time >= 500 and not game.game_over:
+            game.step("tick")
+            fall_time = 0
 
-    
+        screen.fill((18, 20, 28))
+        state = game.get_state()
+
+        status = f"Score: {game.score}   Lines: {game.lines}"
+        if game.game_over:
+            status = "GAME OVER  |  R to restart"
+        screen.blit(font.render(status, True, (245, 245, 245)), (10, HEIGHT * cell + 14))
+        pygame.display.flip()
 
     pygame.quit()
 
