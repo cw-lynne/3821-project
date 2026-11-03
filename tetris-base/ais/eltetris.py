@@ -9,73 +9,52 @@ W_COL_TRANS = -9.348695305445199
 W_HOLES = -7.899265427351652
 W_WELLS = -3.3855972247263626
 
-# Set to False if row index 0 is the TOP of the board in your bitboard.
-ROW0_IS_BOTTOM = True
 
-
-def _to_rows(b, width):
-    """Return a list of row bitmasks, index 0 = bottom row."""
-    rows = []
-    for r in b:
-        if isinstance(r, int):
-            rows.append(r)
-        else:
-            rows.append(sum(1 << c for c, v in enumerate(r) if v))
-    if not ROW0_IS_BOTTOM:
-        rows.reverse()
-    return rows
+def _popcount(n):
+    return bin(n).count("1")
 
 
 def _features(rows, width):
-    """Row transitions, column transitions, holes, wells for a board."""
-    # Row transitions (walls count as filled), up to the highest filled row
-    top = 0
-    for i, r in enumerate(rows):
-        if r:
-            top = i + 1
+    """rows: row bitmasks, index 0 = top. Returns (row_trans, col_trans, holes, wells)."""
+    full = (1 << width) - 1
+
+    # Row transitions: walls count as filled; only rows from the highest block down.
     row_trans = 0
-    for r in rows[:top]:
-        last = True
-        for c in range(width):
-            now = bool((r >> c) & 1)
-            if now != last:
-                row_trans += 1
-            last = now
-        if not last:  # right wall
-            row_trans += 1
+    started = False
+    for r in rows:
+        if r:
+            started = True
+        if not started:
+            continue
+        padded = (1 << (width + 1)) | (r << 1) | 1       # left and right walls
+        row_trans += _popcount((padded ^ (padded >> 1)) & ((1 << (width + 1)) - 1))
 
-    # Column transitions (floor counts as filled), plus holes
-    col_trans = 0
+    # Column transitions: floor counts as filled, empty space above the top doesn't count.
+    col_trans = _popcount(rows[-1] ^ full)               # bottom row vs floor
+    for i in range(len(rows) - 1):
+        col_trans += _popcount(rows[i] ^ rows[i + 1])
+
+    # Holes: empty cells that have a filled cell somewhere above them.
     holes = 0
-    for c in range(width):
-        last = True
-        seen_block = False
-        for r in reversed(rows):  # top -> bottom, only for hole counting
-            filled = bool((r >> c) & 1)
-            if filled:
-                seen_block = True
-            elif seen_block:
-                holes += 1
-        for r in rows:  # bottom -> top
-            now = bool((r >> c) & 1)
-            if now != last:
-                col_trans += 1
-            last = now
+    covered = 0
+    for r in rows:
+        holes += _popcount(covered & ~r & full)
+        covered |= r
 
-    # Wells: empty cells with filled (or wall) neighbors on both sides,
-    # scored as depth*(depth+1)/2 per consecutive run
+    # Wells: empty cells with filled neighbors (or walls) on both sides,
+    # scored depth*(depth+1)/2 per consecutive run, scanning top -> bottom.
     wells = 0
     for c in range(width):
         depth = 0
-        for r in reversed(rows):
+        for r in rows:
             filled = (r >> c) & 1
-            left = True if c == 0 else (r >> (c - 1)) & 1
-            right = True if c == width - 1 else (r >> (c + 1)) & 1
-            if not filled and left and right:
-                depth += 1
-            elif filled:
+            left = 1 if c == 0 else (r >> (c - 1)) & 1
+            right = 1 if c == width - 1 else (r >> (c + 1)) & 1
+            if filled:
                 wells += depth * (depth + 1) // 2
                 depth = 0
+            elif left and right:
+                depth += 1
         wells += depth * (depth + 1) // 2
 
     return row_trans, col_trans, holes, wells
@@ -88,16 +67,24 @@ class ElTetrisAi(TetrisAi):
 
     def choose(self, board, kind):
         width = len(board[0])
+        n_rows = len(board)
+        full = (1 << width) - 1
         bits = board_to_bits(board)
         heights = col_heights(bits, width)
         best = None
 
         for o, x, y, board_after, rows_cleared in legal_placements(bits, heights, kind):
-            rows = _to_rows(board_after, width)
-            row_trans, col_trans, holes, wells = _features(rows, width)
+            # Landing height: height of the piece's lowest row (0 = floor)
+            landing = n_rows - (y + len(o.matrix))
 
-            landing = y
-            eroded = rows_cleared * rows_cleared  # see note below
+            # Eroded cells: rows cleared * piece cells that were in cleared rows
+            piece_cells_cleared = 0
+            for r, piece_row in enumerate(o.rows):
+                if (bits[y + r] | (piece_row << x)) == full:
+                    piece_cells_cleared += _popcount(piece_row)
+            eroded = rows_cleared * piece_cells_cleared
+
+            row_trans, col_trans, holes, wells = _features(board_after, width)
 
             score = (W_LANDING * landing
                      + W_ERODED * eroded
