@@ -3,8 +3,9 @@
 from .base import Placement, TetrisAi, play_turn
 from .misakamm import MisakammAi
 from .random_ai import RandomAi
+from .eltetris import ElTetrisAi
 
-AI_CLASSES = [MisakammAi, RandomAi]
+AI_CLASSES = [MisakammAi, RandomAi, ElTetrisAi]
 AIS = {cls.name: cls for cls in AI_CLASSES}
 DEFAULT_AI = MisakammAi.name
 
