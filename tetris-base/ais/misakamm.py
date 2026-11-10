@@ -222,14 +222,16 @@ class MisakammAi(TetrisAi):
                                    4 * y + o.landing_base, tables)
             yield o, x, score, sim
 
-    def choose(self, board, kind):
+    def choose(self, board, kind, upcoming=()):
         rows, cols = len(board), len(board[0])
         bits = board_to_bits(board)
         heights = col_heights(bits, cols)
         tables = self._well_tables_for_rows(rows)
 
         lookahead_kinds = ()
-        if self.lookahead:
+        if self.lookahead and upcoming:
+            lookahead_kinds = (upcoming[0],)
+        elif self.lookahead:
             # Average distance from the top: search deeper as the stack rises.
             avg_high = sum(rows - h for h in heights) / cols
             if avg_high < 8.0:
