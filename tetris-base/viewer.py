@@ -12,12 +12,12 @@ COLORS = [
 PREVIEW_COUNT = 5  # Upcoming pieces shown in the side panel.
 
 
-def record_frame(game, ai):
+def record_frame(game, ai, future_pieces):
     """Play one AI placement and return a frame showing it: the board before the
     piece locks, plus the piece at its landing position. Returns None on game over."""
     board = [row[:] for row in game.board]
     kind, lines, score = game.kind, game.lines_cleared, game.score
-    turn = play_turn(game, ai)
+    turn = play_turn(game, ai, future_pieces)
     if turn is None:
         return None
     placement, y = turn
@@ -32,7 +32,7 @@ def record_frame(game, ai):
     }
 
 
-def run_viewer(ai, rows, cols, seed=None):
+def run_viewer(ai, rows, cols, seed=None, future_pieces=3):
     import pygame
 
     pygame.init()
@@ -49,7 +49,7 @@ def run_viewer(ai, rows, cols, seed=None):
     def new_game():
         # With a seed, R replays the same game; otherwise each game gets a new seed.
         game = Tetris(rows, cols, seed)
-        return game, [record_frame(game, ai)]
+        return game, [record_frame(game, ai, future_pieces)]
 
     game, history = new_game()
     index = 0  # Frame currently shown.
@@ -71,7 +71,7 @@ def run_viewer(ai, rows, cols, seed=None):
                 elif event.key == pygame.K_RIGHT:
                     # Past the newest frame, ask the AI for its next placement.
                     if index == len(history) - 1 and history[-1] is not None:
-                        history.append(record_frame(game, ai))
+                        history.append(record_frame(game, ai, future_pieces))
                     index = min(len(history) - 1, index + 1)
 
         screen.fill((18, 20, 28))

@@ -24,7 +24,7 @@ class TetrisAi(ABC):
     description = ""  # Shown in --help.
 
     @abstractmethod
-    def choose(self, board, kind):
+    def choose(self, board, kind, upcoming=()):
         """Pick a placement for piece `kind` (an index into SHAPES).
 
         `board` is Tetris.board: a list of rows, top row first; 0 is empty and
@@ -41,7 +41,7 @@ class TetrisAi(ABC):
         return cls()
 
 
-def play_turn(game, ai):
+def play_turn(game, ai, future_pieces):
     """Ask `ai` where to put the current piece and play it.
 
     Returns (placement, landing_y), or None if the AI found no placement, in
@@ -49,7 +49,13 @@ def play_turn(game, ai):
     """
     if game.game_over:
         return None
-    placement = ai.choose(game.board, game.kind)
+
+    if future_pieces < 0:
+        raise ValueError("Future Pieces must be non-negative")
+
+    upcoming = tuple(game.upcoming(future_pieces))
+    
+    placement = ai.choose(game.board, game.kind, upcoming)
     if placement is None:
         game.game_over = True
         return None

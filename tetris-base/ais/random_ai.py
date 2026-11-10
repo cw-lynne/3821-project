@@ -23,7 +23,7 @@ class RandomAi(TetrisAi):
     def from_args(cls, args):
         return cls(seed=args.random_seed)
 
-    def choose(self, board, kind):
+    def choose(self, board, kind, upcoming=()):
         bits = board_to_bits(board)
         options = [(o, x) for o, x, _, _, _ in
                    legal_placements(bits, col_heights(bits, len(board[0])), kind)]
