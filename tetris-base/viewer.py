@@ -9,7 +9,7 @@ COLORS = [
     (50, 95, 220), (245, 150, 35), (65, 190, 90), (225, 65, 75)
 ]
 
-PREVIEW_COUNT = 5  # Upcoming pieces shown in the side panel.
+PREVIEW_COUNT = 5  # Upcoming pieces shown in the side panel (more if the AI sees more).
 
 
 def record_frame(game, ai):
@@ -25,10 +25,10 @@ def record_frame(game, ai):
         "board": board, "kind": kind,
         "piece": placement.piece, "x": placement.x, "y": y,
         "lines": lines, "score": score,
-        # Locking spawns the following piece; it and the ones after it are shown
-        # as a preview only (AIs never see them).
+        # Locking spawns the following piece; it and the ones after it are shown in
+        # the panel. The AI saw the first ai.preview of them when choosing this move.
         "next_kinds": [] if game.game_over
-        else [game.kind] + game.upcoming(PREVIEW_COUNT - 1),
+        else [game.kind] + game.upcoming(max(PREVIEW_COUNT, ai.preview) - 1),
     }
 
 
@@ -38,8 +38,14 @@ def run_viewer(ai, rows, cols, seed=None):
     pygame.init()
     cell = min(30, 600 // rows)  # Keep tall boards on screen.
 
-    panel_width = max(5 * cell, 130)  # Side panel for the next-piece preview.
-    screen = pygame.display.set_mode((cols * cell + panel_width, rows * cell + 55))
+    # Side panel for the next-piece preview. Every shape is at most 2 rows tall;
+    # slots shrink so a long preview still fits on screen.
+    panel_width = max(5 * cell, 150)
+    slot_height = max(28, min(68, 760 // max(PREVIEW_COUNT, ai.preview)))
+    preview_cell = (slot_height - 20) // 2
+    panel_height = 40 + max(PREVIEW_COUNT, ai.preview) * slot_height
+    area_height = max(rows * cell, panel_height)  # Board or panel, whichever is taller.
+    screen = pygame.display.set_mode((cols * cell + panel_width, area_height + 55))
     pygame.display.set_caption(f"Tetris AI Viewer: {ai.name}")
     # Holding an arrow key repeats it, for quickly scrubbing through placements.
     pygame.key.set_repeat(250, 40)
@@ -97,12 +103,16 @@ def run_viewer(ai, rows, cols, seed=None):
                     pygame.draw.rect(screen, (255, 255, 255), rect, 3)
 
         # Upcoming-piece previews stacked down the right panel, soonest at the top.
+        # Pieces the AI saw when choosing this move are outlined.
         panel_x = cols * cell + 15
-        screen.blit(font.render("Next", True, (245, 245, 245)), (panel_x, 10))
-        preview_cell = 24
-        slot_height = 2 * preview_cell + 20  # Every shape is at most 2 rows tall.
+        title = f"Next (AI saw {ai.preview})" if ai.preview else "Next"
+        screen.blit(font.render(title, True, (245, 245, 245)), (panel_x, 10))
         for slot, kind in enumerate(frame["next_kinds"]):
             top = 40 + slot * slot_height
+            if slot < ai.preview:
+                outline = pygame.Rect(panel_x - 5, top - 4, 4 * preview_cell + 10,
+                                      2 * preview_cell + 8)
+                pygame.draw.rect(screen, (255, 215, 90), outline, 2)
             for dy, row in enumerate(SHAPES[kind]):
                 for dx, filled in enumerate(row):
                     if filled:
@@ -116,9 +126,9 @@ def run_viewer(ai, rows, cols, seed=None):
         if history[index] is None:
             status = f"GAME OVER | Lines: {frame['lines']} | R: new game"
         status += f" | Seed: {game.seed}"
-        screen.blit(font.render(status, True, (245, 245, 245)), (10, rows * cell + 8))
+        screen.blit(font.render(status, True, (245, 245, 245)), (10, area_height + 8))
         hint = "Left/Right: step through moves | R: new game"
-        screen.blit(font.render(hint, True, (150, 155, 170)), (10, rows * cell + 30))
+        screen.blit(font.render(hint, True, (150, 155, 170)), (10, area_height + 30))
         pygame.display.flip()
 
     pygame.quit()

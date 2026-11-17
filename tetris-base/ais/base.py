@@ -22,6 +22,9 @@ class TetrisAi(ABC):
 
     name = ""         # Used for --ai on the command line.
     description = ""  # Shown in --help.
+    # How many upcoming pieces (beyond the current one) the AI is shown. An AI
+    # that sets this above 0 must accept a `next_kinds` argument in choose().
+    preview = 0
 
     @abstractmethod
     def choose(self, board, kind):
@@ -29,6 +32,9 @@ class TetrisAi(ABC):
 
         `board` is Tetris.board: a list of rows, top row first; 0 is empty and
         nonzero is filled. Return a Placement, or None if nothing fits (game over).
+
+        AIs with `preview > 0` are called as choose(board, kind, next_kinds), where
+        next_kinds lists the next `preview` piece kinds in order.
         """
 
     @classmethod
@@ -49,7 +55,10 @@ def play_turn(game, ai):
     """
     if game.game_over:
         return None
-    placement = ai.choose(game.board, game.kind)
+    if ai.preview > 0:
+        placement = ai.choose(game.board, game.kind, game.upcoming(ai.preview))
+    else:
+        placement = ai.choose(game.board, game.kind)
     if placement is None:
         game.game_over = True
         return None

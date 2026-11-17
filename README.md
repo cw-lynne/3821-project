@@ -28,14 +28,17 @@ Requires Python 3.10 or newer.
 - **Misakamm AI** (`ais/misakamm.py`): a port of the C++ `SimpleAi` with the
   same features, weights and tie-breaking. It plays exactly the same games as
   the C++ program for any seed and board size; this was checked by comparing
-  340 full games against the compiled C++ program. An optional lookahead mode
-  (`--lookahead`) is also ported.
+  340 full games against the compiled C++ program.
+- **Piece preview with beam search** (misakamm only): with `--preview N` the
+  Misakamm AI also sees the next N pieces and searches placements for the whole
+  queue, keeping the best `--beam-width` boards after each piece and merging
+  duplicate boards. See [Beam search](#beam-search-misakamm---preview).
 - **Random AI** (`ais/random_ai.py`): drops each piece at a random legal spot.
   Useful as a baseline and as a template for new AIs.
 - **Pluggable AI interface** (`ais/base.py`): any class that implements
   `choose()` can be selected with `--ai`.
 - **Viewer** (`viewer.py`): step forward and back through an AI's placements,
-  with the next 5 pieces previewed.
+  with the upcoming pieces previewed.
 - **Headless runner** (`main.py --headless`): plays a game without a window and
   prints the result in the same format as the C++ `run_simple_ai`.
 
@@ -57,9 +60,10 @@ python3 main.py
 | R | New game (replays the same game if `--seed` was given) |
 
 Each frame shows the board just before the piece locks, with the AI's
-placement outlined in white. The right panel previews the next 5 pieces, and
-the status bar shows the move number, lines, score and seed. The AI never sees
-the previews; they are for display only.
+placement outlined in white. The right panel shows the next 5 pieces (or N with
+`--preview N`, if larger), and the status bar shows the move number, lines,
+score and seed. Pieces the AI saw when choosing the shown move are outlined in
+yellow; the rest are for display only.
 
 ### Headless
 
@@ -74,13 +78,15 @@ that and prints the seed.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai NAME` | `misakamm` | Which AI plays: `misakamm` or `random` |
+| `--ai NAME` | `misakamm` | Which AI plays (`--help` lists them all) |
 | `--headless` | off | Run without a window |
 | `--pieces N` | `10000` | Headless only: stop after N pieces; `0` plays until game over |
 | `--rows N` | `20` | Board height, 1–31 |
 | `--cols N` | `10` | Board width, 1–14 |
 | `--seed N` | random | Piece seed; the same seed always gives the same pieces |
-| `--lookahead` | off | misakamm only: extra one-piece search when the stack is high (stronger, much slower) |
+| `--preview N` | `0` | misakamm only: number of upcoming pieces the AI sees and searches; `0` plays exactly like the C++ |
+| `--beam-width K` | `8` | misakamm only: boards kept after each piece of the search (larger = stronger, slower) |
+| `--score-mode MODE` | `sum` | misakamm only: score a line of play by the `sum` of its placements' evaluations, or by the `final` placement only |
 | `--random-seed N` | random | random AI only: seed for its choices |
 | `-h`, `--help` | | List all flags and available AIs |
 
@@ -90,6 +96,8 @@ that and prints the seed.
 python3 main.py --seed 6 --rows 10                          # watch a specific game
 python3 main.py --headless --rows 10 --seed 6 --pieces 0    # prints pieces=30204 lines=12073, as in the C++ README
 python3 main.py --ai random --rows 10                       # watch the baseline AI
+python3 main.py --rows 8 --preview 3                        # watch misakamm use a 3-piece preview
+python3 main.py --headless --rows 6 --seed 1 --pieces 0 --preview 2 --beam-width 16
 ```
 
 On the default 20×10 board the misakamm AI almost never loses, so give
@@ -106,10 +114,53 @@ also used in many Tetris AI papers:
 3. The game ends when a piece locks with any cell above the top row. This
    check happens before line clears.
 4. Pieces come from the seeded generator described above. The C++ AI uses no
-   next-piece preview.
+   next-piece preview, so results with `--preview` are a separate experiment
+   and not comparable with the published C++ numbers.
 
 Because of rules 1 and 2, a move is fully described by the piece's
 orientation and the column it is dropped in.
+
+## Beam search (misakamm `--preview`)
+
+With `--preview N`, the AI knows the current piece and the next N. It searches
+the whole queue one piece at a time:
+
+1. Place the current piece every legal way and score each result.
+2. Merge results that reach the same board, keeping the best line to it.
+3. Keep the best `--beam-width` boards.
+4. For each kept board, place the next queued piece every legal way, score,
+   merge and prune again. Repeat until the queue is used up.
+5. Play the first move of the best surviving line.
+
+If every kept line tops out on some queued piece, the AI plays the first move
+of the best line from one piece earlier.
+
+The cost per move is about `23 × (1 + N × K)` board evaluations (each piece
+has about 23 legal placements), so it grows linearly with the preview length
+N and the beam width K rather than exponentially.
+
+`--score-mode` chooses how a line is scored: `sum` adds up Misakamm's
+evaluation of every placement in it (keeping each move's landing height and
+lines cleared), while `final` uses only the last placement's evaluation.
+With `--preview 0` the AI plays exactly like the C++ version.
+
+### Benchmarking beam settings
+
+`benchmark.py` compares beam-search settings with the plain AI (no preview),
+which always runs first as the control. Every setting plays the same seeds,
+in parallel across CPU cores:
+
+```bash
+python3 benchmark.py                                         # defaults: 1x8 2x8 2x8:final 3x8
+python3 benchmark.py --rows 6 --games 200 --settings 1x8 2x8 2x8:final 3x16
+python3 benchmark.py --csv results.csv                       # also save every game
+```
+
+A setting is `PREVIEWxWIDTH[:MODE]`, e.g. `2x8` or `3x16:final`. The table
+shows mean lines with a 95% confidence interval, the median, the ratio to the
+control, time per move, and how many games hit `--cap` (default 5000 pieces;
+capped settings' numbers are lower bounds). Results vary a lot between games,
+so use 100 or more games per setting.
 
 ## Project structure
 
@@ -172,6 +223,10 @@ tetris-base/
 - Return `Placement(piece, x)`, where `piece` is the shape matrix in the chosen
   orientation and `x` is the board column of its left edge. Return `None` if
   no placement fits, which ends the game.
+- To see upcoming pieces, set `self.preview` to how many you want and accept a
+  third argument: `choose(self, board, kind, next_kinds=())`. `play_turn` then
+  passes the next `preview` piece kinds in order. AIs that leave `preview` at
+  `0` are called with just `board` and `kind`.
 
 ### Helpers in `ais/bitboard.py`
 

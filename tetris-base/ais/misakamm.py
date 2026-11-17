@@ -1,9 +1,12 @@
-"""Python port of Misakamm's SimpleAi (classic survival rules, no next-piece preview).
+"""Python port of Misakamm's SimpleAi (classic survival rules), with an optional
+beam search over a preview of upcoming pieces.
 
-Plays exactly the same games as the C++ reference for any seed and board size.
+With no preview (the default) it plays exactly the same games as the C++
+reference for any seed and board size.
 """
 
 from dataclasses import astuple, dataclass
+from typing import NamedTuple
 
 from tetris_base import SHAPES
 
@@ -26,7 +29,11 @@ class AiWeights:
 
 
 ROW_TRANSITIONS_WEIGHT = 100
-NEG_INF = float("-inf")
+
+# How a beam search scores a sequence of placements:
+#   sum:   total of every placement's evaluation
+#   final: evaluation of the last placement only
+SCORE_MODES = ("sum", "final")
 
 
 def _build_adapt_patterns():
@@ -50,9 +57,6 @@ def _build_adapt_patterns():
 
 ADAPT_PATTERNS = _build_adapt_patterns()
 ADAPT_SCORES = (0, 4, 6)  # Score for 0, 1, and 2+ matches of a piece kind.
-
-# Piece kinds tried by the "half" lookahead: S, Z, O.
-HALF_SEARCH_KINDS = (5, 6, 1)
 
 
 def _hole_masks(cols):
@@ -158,25 +162,50 @@ def _shape_adaptability(heights):
     return sum(ADAPT_SCORES[min(m, 2)] for m in matches[1:])
 
 
+class _Path(NamedTuple):
+    """A line of play in the beam search."""
+
+    score: float   # Path score so far (see SCORE_MODES).
+    tie: tuple     # Tie-break key of the first move; smaller wins.
+    first: object  # Placement of the current piece that starts this line.
+    bits: list     # Board after the last placement.
+
+
 class MisakammAi(TetrisAi):
     name = "misakamm"
-    description = "port of Misakamm's C++ SimpleAi (~270M lines on a 20x10 board)"
+    description = ("port of Misakamm's C++ SimpleAi (~270M lines on a 20x10 board), "
+                   "with optional beam search over a piece preview")
 
-    def __init__(self, weights=None, lookahead=False):
+    def __init__(self, weights=None, preview=0, beam_width=8, score_mode="sum"):
+        if preview < 0:
+            raise ValueError("preview must be >= 0")
+        if beam_width < 1:
+            raise ValueError("beam_width must be >= 1")
+        if score_mode not in SCORE_MODES:
+            raise ValueError(f"score_mode must be one of {SCORE_MODES}")
         self.weights = weights or AiWeights()
-        # Optional averaged one-piece lookahead when the stack gets high (off by default).
-        self.lookahead = lookahead
+        self.preview = preview          # Upcoming pieces searched (0 = C++ behaviour).
+        self.beam_width = beam_width    # Lines kept after each piece of the search.
+        self.score_mode = score_mode
         self._well_tables = None
         self._well_tables_key = None
 
     @classmethod
     def add_arguments(cls, parser):
-        parser.add_argument("--lookahead", action="store_true",
-                            help="enable the misakamm AI's lookahead when the stack is high")
+        parser.add_argument("--preview", type=int, default=0, metavar="N",
+                            help="misakamm: number of upcoming pieces the AI sees and "
+                                 "searches (default 0 = same play as the C++)")
+        parser.add_argument("--beam-width", type=int, default=8, metavar="K",
+                            help="misakamm: lines of play kept after each piece of the "
+                                 "beam search (default 8)")
+        parser.add_argument("--score-mode", choices=SCORE_MODES, default="sum",
+                            help="misakamm: score a line by the sum of its placements' "
+                                 "evaluations or by the last one only (default sum)")
 
     @classmethod
     def from_args(cls, args):
-        return cls(lookahead=args.lookahead)
+        return cls(preview=args.preview, beam_width=args.beam_width,
+                   score_mode=args.score_mode)
 
     def _well_tables_for_rows(self, rows):
         key = (rows, astuple(self.weights))
@@ -222,56 +251,68 @@ class MisakammAi(TetrisAi):
                                    4 * y + o.landing_base, tables)
             yield o, x, score, sim
 
-    def choose(self, board, kind):
+    def _first_moves(self, bits, heights, kind, tables):
+        """Every placement of the current piece as a one-move _Path."""
+        cols = len(heights)
+        paths = []
+        for i, (o, x, score, sim) in enumerate(self._placements(bits, heights, kind, tables)):
+            # Ties prefer placements closer to the board center, then the smaller
+            # C++ x (shape box position), then C++ search order.
+            center_bias = abs(2 * x + o.width - 1 - (cols - 1))
+            paths.append(_Path(score, (center_bias, x - o.offset, i), Placement(o.matrix, x), sim))
+        return paths
+
+    def _select(self, paths, last):
+        """Merge lines that reach the same board, then keep the best beam_width.
+
+        Returned best first. `last` is True after the final piece of the search.
+        """
+        merged = {}
+        for p in paths:
+            key = tuple(p.bits)
+            old = merged.get(key)
+            if old is None:
+                merged[key] = p
+            elif self.score_mode == "final" and not last:
+                # Only the last placement counts, and what follows depends only on
+                # the board, so keep the first move that would win a tie; the
+                # higher score is just used for pruning.
+                winner = old if old.tie <= p.tie else p
+                merged[key] = winner._replace(score=max(old.score, p.score))
+            elif (-p.score, p.tie) < (-old.score, old.tie):
+                merged[key] = p
+        ranked = sorted(merged.values(), key=lambda p: (-p.score, p.tie))
+        return ranked[:self.beam_width]
+
+    def choose(self, board, kind, next_kinds=()):
         rows, cols = len(board), len(board[0])
         bits = board_to_bits(board)
         heights = col_heights(bits, cols)
         tables = self._well_tables_for_rows(rows)
 
-        lookahead_kinds = ()
-        if self.lookahead:
-            # Average distance from the top: search deeper as the stack rises.
-            avg_high = sum(rows - h for h in heights) / cols
-            if avg_high < 8.0:
-                lookahead_kinds = range(1, len(SHAPES))  # Every piece except I.
-            elif avg_high < 12.0:
-                lookahead_kinds = HALF_SEARCH_KINDS
-
-        # Ties prefer placements closer to the board center, then the smaller C++ x
-        # (shape box position); the stable sort keeps C++ search order after that.
-        candidates = []
-        for o, x, score, sim in self._placements(bits, heights, kind, tables):
-            center_bias = abs(2 * x + o.width - 1 - (cols - 1))
-            candidates.append((score, center_bias, x - o.offset, x, o, sim))
-        if not candidates:
+        paths = self._first_moves(bits, heights, kind, tables)
+        if not paths:
             return None
-        candidates.sort(key=lambda c: (-c[0], c[1], c[2]))
+        queue = list(next_kinds)[:self.preview]
+        if not queue:
+            # No preview: the C++ reference's choice, the best single placement.
+            return min(paths, key=lambda p: (-p.score, p.tie)).first
 
-        if not lookahead_kinds:
-            _, _, _, x, o, _ = candidates[0]
-            return Placement(o.matrix, x)
-
-        coarse_prune_gap = 200 * 60
-        best_score = None
-        best_move = (candidates[0][4], candidates[0][3])
-        for score, _, _, x, o, sim in candidates[:8]:
-            if best_score is not None and score + coarse_prune_gap < best_score:
-                break
-            sim_heights = col_heights(sim, cols)
-            next_scores = [
-                s for s in (max((ps for _, _, ps, _ in
-                                 self._placements(sim, sim_heights, k, tables)),
-                                default=NEG_INF)
-                            for k in lookahead_kinds)
-                if s != NEG_INF
-            ]
-            if next_scores:
-                # int() truncates toward zero, matching C++ integer division.
-                combined = score + int(sum(next_scores) / len(next_scores)) + 50000
-            else:
-                combined = score
-            if best_score is None or combined > best_score:
-                best_score = combined
-                best_move = (o, x)
-        o, x = best_move
-        return Placement(o.matrix, x)
+        # Beam search: place the queued pieces one at a time, keeping only the
+        # best beam_width distinct boards after each piece.
+        beam = self._select(paths, last=False)
+        for depth, next_kind in enumerate(queue):
+            last = depth == len(queue) - 1
+            children = []
+            for path in beam:
+                for _, _, step, sim in self._placements(path.bits, col_heights(path.bits, cols),
+                                                        next_kind, tables):
+                    score = path.score + step if self.score_mode == "sum" else step
+                    children.append(path._replace(score=score, bits=sim))
+            if not children:
+                # Every kept line tops out on this piece: play the best line so far,
+                # judged on the unmerged lines so each score matches its first move.
+                return min(paths, key=lambda p: (-p.score, p.tie)).first
+            paths = children
+            beam = self._select(children, last)
+        return beam[0].first
