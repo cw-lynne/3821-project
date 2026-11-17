@@ -1,0 +1,18 @@
+rows 5, 100 games (seeds 0-99), cap 5000, final scoring
+                 mean   95% CI   median  ms/move capped
+1x8:
+  merge         133.0    ±23.6     90.5     2.26    0/100
+  no merge      131.6    ±23.6     90.5     2.19    0/100
+  merging clears more on 1 seeds, fewer on 1, same on 98
+2x2:
+  merge         288.1    ±56.3    183.0     1.48    0/100
+  no merge      209.6    ±42.6    143.5     1.46    0/100
+  merging clears more on 57 seeds, fewer on 30, same on 13
+2x8:
+  merge         792.4   ±128.9    608.0     4.50   11/100
+  no merge      830.8   ±130.5    583.0     4.42   17/100
+  merging clears more on 39 seeds, fewer on 53, same on 8
+3x8:
+  merge        1709.0   ±109.9   1998.0     6.93   73/100
+  no merge     1739.2   ±106.0   1998.0     6.83   72/100
+  merging clears more on 34 seeds, fewer on 38, same on 28

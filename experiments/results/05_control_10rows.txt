@@ -1,0 +1,5 @@
+Board 10x10, 20 games per setting (seeds 0-19), no cap, 11 workers
+
+setting                         mean lines    95% CI   median vs control  ms/move  capped
+-----------------------------------------------------------------------------------------
+no preview (control)                5013.1   ±2084.5   3471.5       1.0x     0.39   0/20

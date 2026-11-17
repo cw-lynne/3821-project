@@ -1,0 +1,51 @@
+
+== rows=5: 100 games, 8853 moves, 146634 candidate placements
+  chosen move            min   -399900  p5   -188043  median    -88932  mean   -102378  p95    -60810  max    -48345  sd    41720
+  all candidates         min   -560019  p5   -306897  median   -184884  mean   -188699  p95    -83967  max    -48345  sd    67155
+  best - worst per move  min         0  p5     82248  median    195144  mean    192829  p95    299304  max    471696  sd    66539
+  mean contribution of each term to the chosen move:
+    landing height            9455
+    rows cleared              1837
+    row transitions         -78299
+    col transitions         -60152
+    holes                    -7308
+    edge holes x0             -573
+    x1 holes                  -270
+    x2 holes                  -291
+    hole depth               -2923
+    wells                    -5721
+    shape adaptability       41868
+
+== rows=10: 20 games, 38457 moves, 884767 candidate placements
+  chosen move            min   -549540  p5   -223362  median   -122736  mean   -136241  p95    -98667  max    -88245  sd    42388
+  all candidates         min  -1147284  p5   -405597  median   -237945  mean   -248415  p95   -126081  max    -88245  sd    85501
+  best - worst per move  min         0  p5    126558  median    243954  mean    256208  p95    426306  max    861402  sd    92109
+  mean contribution of each term to the chosen move:
+    landing height           28111
+    rows cleared              2055
+    row transitions        -134256
+    col transitions         -59713
+    holes                    -6125
+    edge holes x0             -237
+    x1 holes                  -259
+    x2 holes                  -232
+    hole depth               -2605
+    wells                    -4808
+    shape adaptability       41828
+
+== rows=20: 10 games, 20000 moves, 464199 candidate placements
+  chosen move            min   -547158  p5   -300648  median   -202662  mean   -215977  p95   -178467  max   -168045  sd    39435
+  all candidates         min  -1434339  p5   -488982  median   -319251  mean   -330291  p95   -206682  max   -168045  sd    87615
+  best - worst per move  min     34560  p5    126738  median    246222  mean    260444  p95    442728  max   1128756  sd    98199
+  mean contribution of each term to the chosen move:
+    landing height           68230
+    rows cleared              2059
+    row transitions        -254777
+    col transitions         -59485
+    holes                    -5519
+    edge holes x0             -274
+    x1 holes                  -296
+    x2 holes                  -192
+    hole depth               -2489
+    wells                    -5054
+    shape adaptability       41820

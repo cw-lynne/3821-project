@@ -31,9 +31,10 @@ class AiWeights:
 ROW_TRANSITIONS_WEIGHT = 100
 
 # How a beam search scores a sequence of placements:
-#   sum:   total of every placement's evaluation
-#   final: evaluation of the last placement only
+#   sum:   cumulative (path) scoring, the total of every placement's evaluation
+#   final: final-board (state) scoring, the evaluation of the last placement only
 SCORE_MODES = ("sum", "final")
+DEFAULT_SCORE_MODE = "final"  # Stronger in every benchmarked setting.
 
 
 def _build_adapt_patterns():
@@ -176,7 +177,7 @@ class MisakammAi(TetrisAi):
     description = ("port of Misakamm's C++ SimpleAi (~270M lines on a 20x10 board), "
                    "with optional beam search over a piece preview")
 
-    def __init__(self, weights=None, preview=0, beam_width=8, score_mode="sum"):
+    def __init__(self, weights=None, preview=0, beam_width=8, score_mode=DEFAULT_SCORE_MODE):
         if preview < 0:
             raise ValueError("preview must be >= 0")
         if beam_width < 1:
@@ -198,9 +199,9 @@ class MisakammAi(TetrisAi):
         parser.add_argument("--beam-width", type=int, default=8, metavar="K",
                             help="misakamm: lines of play kept after each piece of the "
                                  "beam search (default 8)")
-        parser.add_argument("--score-mode", choices=SCORE_MODES, default="sum",
+        parser.add_argument("--score-mode", choices=SCORE_MODES, default=DEFAULT_SCORE_MODE,
                             help="misakamm: score a line by the sum of its placements' "
-                                 "evaluations or by the last one only (default sum)")
+                                 f"evaluations or by the last one only (default {DEFAULT_SCORE_MODE})")
 
     @classmethod
     def from_args(cls, args):

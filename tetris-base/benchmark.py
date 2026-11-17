@@ -5,11 +5,11 @@ control (no preview, which plays exactly like the C++ version) always runs
 first, and each setting is compared with it.
 
     python3 benchmark.py                                   # default settings
-    python3 benchmark.py --rows 6 --games 200 --settings 1x8 2x8 2x8:final 3x16
+    python3 benchmark.py --rows 6 --games 200 --settings 1x8 2x8 2x8:sum 3x16
     python3 benchmark.py --csv results.csv                 # also save every game
 
 A setting is PREVIEWxWIDTH[:MODE], e.g. 2x8 (2 preview pieces, beam width 8,
-sum scoring) or 3x16:final.
+the default final scoring) or 3x16:sum.
 """
 
 import argparse
@@ -21,21 +21,21 @@ import time
 from multiprocessing import Pool
 
 from ais import play_turn
-from ais.misakamm import SCORE_MODES, MisakammAi
+from ais.misakamm import DEFAULT_SCORE_MODE, SCORE_MODES, MisakammAi
 from tetris_base import MAX_ROWS, Tetris
 
-CONTROL = (0, 1, "sum")  # No preview: the plain AI. Width and mode are unused.
-DEFAULT_SETTINGS = ["1x8", "2x8", "2x8:final", "3x8"]
+CONTROL = (0, 1, DEFAULT_SCORE_MODE)  # No preview: the plain AI. Width and mode are unused.
+DEFAULT_SETTINGS = ["1x8", "2x8", "2x8:sum", "3x8"]
 
 
 def parse_setting(text):
-    """'2x8' -> (2, 8, 'sum'); '3x16:final' -> (3, 16, 'final')."""
+    """'2x8' -> (2, 8, 'final'); '3x16:sum' -> (3, 16, 'sum')."""
     try:
         spec, _, mode = text.partition(":")
         preview, width = (int(v) for v in spec.lower().split("x"))
     except ValueError:
-        raise argparse.ArgumentTypeError(f"bad setting {text!r}; expected e.g. 2x8 or 3x16:final")
-    mode = mode or "sum"
+        raise argparse.ArgumentTypeError(f"bad setting {text!r}; expected e.g. 2x8 or 3x16:sum")
+    mode = mode or DEFAULT_SCORE_MODE
     if preview < 1 or width < 1 or mode not in SCORE_MODES:
         raise argparse.ArgumentTypeError(
             f"bad setting {text!r}: preview and width must be >= 1, mode one of {SCORE_MODES}")
@@ -81,9 +81,10 @@ def main():
         description="Benchmark misakamm beam-search settings against the plain AI.",
         epilog="Lines-cleared results vary a lot between games (roughly exponentially), "
                "so use 100+ games per setting; ~300 gives about +-10% on the mean.")
-    parser.add_argument("--settings", nargs="+", type=parse_setting,
+    parser.add_argument("--settings", nargs="*", type=parse_setting,
                         default=[parse_setting(s) for s in DEFAULT_SETTINGS], metavar="PxW[:MODE]",
-                        help=f"beam settings to test (default: {' '.join(DEFAULT_SETTINGS)})")
+                        help=f"beam settings to test (default: {' '.join(DEFAULT_SETTINGS)}); "
+                             "give none to run only the control")
     parser.add_argument("--rows", type=int, default=5,
                         help="board rows (default 5; short boards end games quickly)")
     parser.add_argument("--cols", type=int, default=10, help="board cols (default 10)")
@@ -102,7 +103,8 @@ def main():
     settings = [CONTROL] + [s for s in dict.fromkeys(args.settings) if s != CONTROL]
     seeds = range(args.first_seed, args.first_seed + args.games)
     print(f"Board {args.rows}x{args.cols}, {args.games} games per setting (seeds {seeds.start}-"
-          f"{seeds.stop - 1}), cap {args.cap or 'none'} pieces, {args.workers} workers\n")
+          f"{seeds.stop - 1}), {f'cap {args.cap} pieces' if args.cap else 'no cap'}, "
+          f"{args.workers} workers\n")
     header = (f"{'setting':<30} {'mean lines':>11} {'95% CI':>9} {'median':>8} "
               f"{'vs control':>10} {'ms/move':>8} {'capped':>7}")
     print(header)
