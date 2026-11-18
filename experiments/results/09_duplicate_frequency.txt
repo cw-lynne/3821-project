@@ -1,0 +1,2 @@
+preview 1: 1462713 lines -> 1431820 distinct boards (2.1% duplicates); an unmerged top-8 would hold 7.65 distinct boards on average; 14.8% of levels have a duplicate in the top 8
+preview 2: 10319407 lines -> 10162719 distinct boards (1.5% duplicates); an unmerged top-8 would hold 7.63 distinct boards on average; 18.3% of levels have a duplicate in the top 8

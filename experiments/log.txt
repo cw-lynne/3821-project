@@ -1,0 +1,198 @@
+Experiment log
+==============
+
+Every test or benchmark run, with what the script does, what it is meant to
+test, and the result. Newest entries at the bottom.
+
+Board size is rows x 10 columns unless stated. Seeds 0-(games-1). "Cap" is the
+piece limit per game. Scripts in this folder add ../tetris-base to the import
+path, so they can be run from anywhere, e.g.
+    python3 experiments/merge_vs_no_merge.py
+Commands that use benchmark.py or main.py are run from tetris-base/.
+
+Entries 1-10 were written up after the runs, on 2026-11-17, from this
+session's results. Entries from 11 onwards were logged as they were run.
+
+
+1. Lookahead on the cw/future-piece branch
+   Script:  experiments/future_piece_branch.py <path to that branch's tetris-base>
+   Date:    2026-11-17
+   Does:    On the teammate's cw/future-piece branch, plays Misakamm on seeds
+            0-59 of a 6-row board (cap 20000) in three modes: plain, the old
+            --lookahead (averaged over every possible next piece), and
+            --lookahead given the real next piece.
+   Tests:   Whether that branch's use of future pieces actually works and
+            helps.
+   Result:  plain 96.0, averaged lookahead 103.2, real next piece 246.9 mean
+            lines. (El-Tetris and BCTS crash on that branch: their choose()
+            was not updated.)
+
+2. --preview 1 on the same games as entry 1
+   Script:  experiments/preview1_6rows.py
+   Date:    2026-11-17
+   Does:    Plays this branch's Misakamm with --preview 1 --beam-width 8 on
+            the same seeds, board and cap as entry 1.
+   Tests:   Whether this branch already covers what cw/future-piece does.
+   Result:  682.0 mean lines (median 432.5), vs 246.9 for that branch's
+            lookahead with the real next piece. (Sum scoring, the default
+            at the time; the script now sets sum explicitly.)
+
+3. Reference benchmark (README "Reproduce the results")
+   Date:    2026-11-17
+   Command: python3 benchmark.py --games 100
+   Does:    Plays the plain AI (control) and the default beam settings
+            1x8, 2x8, 2x8:sum, 3x8 (final scoring) on the same 100 seeds,
+            5-row board, cap 5000.
+   Tests:   How much a piece preview improves lines cleared; produces the
+            README's expected output.
+   Result:  control 31.5, 1x8 133.0, 2x8 792.4, 2x8:sum 481.9,
+            3x8 >= 1709.0 (73/100 capped).
+
+4. C++ match check
+   Date:    2026-11-17
+   Command: python3 main.py --headless --rows 10 --seed 6 --pieces 0
+   Does:    Plays one full game with the plain AI.
+   Tests:   That the Python port still plays exactly like the C++ (expected
+            pieces=30204 lines=12073) after the score-mode default changed.
+   Result:  pieces=30204 lines=12073 (match).
+
+5. Plain AI on a 10-row board
+   Date:    2026-11-17
+   Command: python3 benchmark.py --rows 10 --games 20 --cap 0 --settings
+   Does:    Runs only the control (no preview), 20 full games.
+   Tests:   That --settings with no values runs only the control; gives the
+            README's 10-row figure.
+   Result:  mean 5013.1, median 3471.5, about 30 s (17 s on an idle
+            machine, see entry 15).
+
+6. Sum vs final scoring
+   Date:    2026-11-17
+   Command: python3 benchmark.py --games 100 --settings 1x8:sum 1x8:final
+            2x2:sum 2x2:final 2x8:sum 2x8:final 2x32:sum 2x32:final 3x8:sum
+            3x8:final --csv modes.csv
+            (Run while sum was still the default, as "1x8 1x8:final 2x2 ...".
+            The modes are written out here so the command gives the same
+            settings with the current default.)
+   Does:    Plays each setting with both score modes on the same 100 seeds,
+            5-row board, cap 5000, and saves every game to a CSV for a
+            per-seed comparison.
+   Tests:   Whether final scoring beats sum scoring in general, not just at 2x8.
+   Result:  final won at every setting (sum -> final): 1x8 101.3 -> 133.0,
+            2x2 132.9 -> 288.1, 2x8 481.9 -> 792.4, 2x32 520.5 -> 787.9,
+            3x8 1406.3 -> 1709.0. Per seed, final cleared more on 55-71 of
+            100 seeds. Final became the default.
+
+7. Stack height per setting
+   Script:  experiments/stack_height.py 5 100 2000   (args: rows games cap)
+   Date:    2026-11-17
+   Does:    Plays control, 1x8, 2x8 and 3x8 (sum and final) on 100 seeds,
+            5-row board, cap 2000, recording column heights after every move.
+   Tests:   Whether stronger settings keep the stack lower (the idea that a
+            low board is an emergent trait of the best settings).
+   Result:  Average column height falls as settings get stronger
+            (control 1.99 -> 3x8 sum 1.65), but final keeps slightly higher
+            stacks than sum while clearing more lines.
+
+8. Evaluation function statistics
+   Script:  experiments/eval_stats.py
+   Date:    2026-11-17
+   Does:    Plays plain-AI games on 5, 10 and 20-row boards and scores every
+            legal placement each turn, recording each evaluation term.
+   Tests:   The range, mean and makeup of Misakamm's evaluation scores.
+   Result:  Chosen-move scores are always negative (e.g. 5 rows: mean
+            -102,378); row/column transitions and shape adaptability dominate;
+            line clears are rewarded only 5,160 each. (Removed from the README
+            as not relevant to the preview comparison.)
+
+9. Duplicate board frequency
+   Script:  experiments/duplicate_frequency.py
+   Date:    2026-11-17
+   Does:    Plays 40 games each at 1x8 and 2x8 (final scoring, 5-row board,
+            cap 1500) and, at every search step after the first piece, counts
+            lines whose board duplicates another line's board.
+   Tests:   How often beam search actually merges duplicate boards.
+   Result:  1x8: 2.1% of lines are duplicates, 2x8: 1.5%; an unmerged top 8
+            would hold 7.65 / 7.63 distinct boards on average; 14.8% / 18.3%
+            of steps have a duplicate in the top 8. (Run with the default
+            score mode, final; the script now sets final explicitly.)
+
+10. Beam search vs full search (earlier in the project)
+   Script:  full_search_check.py (lost: it was in a temporary folder that was
+            cleared before this log started)
+   Does:    Compares beam search with unlimited width against an exhaustive
+            search on 517 normal and 4,160 nearly full positions.
+   Tests:   That pruning is the only difference between beam search and a
+            full search, including the fallback when every line tops out.
+   Result:  0 mismatches on 4,677 positions.
+
+11. Merging vs not merging duplicate boards
+   Script:  experiments/merge_vs_no_merge.py
+   Date:    2026-11-17
+   Does:    Plays 1x8, 2x2, 2x8 and 3x8 (final scoring) on the same 100 seeds,
+            5-row board, cap 5000, once with the normal beam search and once
+            with a copy whose merge step is removed (it just keeps the top K
+            lines, duplicates included). Reports mean lines, 95% CI, median,
+            ms/move, capped games and per-seed wins.
+   Tests:   Whether merging duplicate boards actually makes the AI stronger.
+   Result:  merged vs unmerged mean lines (per seed: merging better / worse;
+            two-sided sign test p):
+            1x8 133.0 vs 131.6 (1 / 1, same on 98 seeds);
+            2x2 288.1 vs 209.6 (57 / 30, p = 0.005);
+            2x8 792.4 vs 830.8 (39 / 53, p = 0.17, CIs overlap);
+            3x8 1709.0 vs 1739.2 (34 / 38, p = 0.72; ~72% of games capped).
+            Merging helps a lot at narrow beam width and makes no significant
+            difference at width 8. Time per move is the same either way.
+
+12. Smoke test of the moved experiment scripts
+   Command: python3 -m py_compile experiments/*.py
+            python3 experiments/stack_height.py 4 3 100
+   Date:    2026-11-17
+   Does:    Compiles every script in experiments/ and runs one with a tiny
+            workload (4-row board, 3 games, cap 100) from the repo root.
+   Tests:   That the scripts still import the game correctly after being
+            moved into experiments/.
+   Result:  All compile; stack_height.py ran and printed its table.
+
+13. Sign tests for entry 11
+   Command: inline python (math.comb), no script
+   Date:    2026-11-17
+   Does:    Two-sided sign test on the per-seed wins/losses from entry 11,
+            ignoring seeds with equal results.
+   Tests:   Whether merging's per-seed advantage or disadvantage at each
+            setting could be chance.
+   Result:  2x2 p = 0.005 (merging genuinely better); 2x8 p = 0.17 and
+            3x8 p = 0.72 (no significant difference). Used in the README's
+            "Merging duplicate boards" section.
+
+14. Review of the log against the scripts
+   Date:    2026-11-17
+   Does:    Compared each script in experiments/ with the copy that produced
+            its logged result, and checked which ones depended on the default
+            score mode.
+   Tests:   That every logged result can be reproduced from the files here.
+   Result:  The code that ran is unchanged in every script (only docstrings
+            and the import path were added). Three scripts relied on the
+            default score mode, which changed from sum to final during the
+            session: preview1_6rows.py (ran with sum), duplicate_frequency.py
+            and merge_vs_no_merge.py (ran with final). Each now sets its mode
+            explicitly. Entry 6's command was rewritten with explicit modes,
+            and entry 9's result was corrected to the exact figures from the
+            final version of its script. The results themselves were not
+            re-run.
+
+15. Full re-run of every reproducible entry
+   Script:  experiments/rerun_all.sh   (outputs in experiments/results/)
+   Date:    2026-11-17
+   Does:    Re-runs entries 1-9 and 11 from the files in experiments/ and the
+            repo, one after another, saving each output. Entry 1 runs on a
+            temporary worktree of origin/cw/future-piece. Entry 10's script
+            is lost, and entries 12-14 are checks rather than results.
+   Tests:   That every logged result is reproduced exactly by the scripts
+            and commands as they are now written in this log.
+   Result:  Every re-run matched its logged result exactly (lines cleared,
+            medians, CIs, capped counts, per-seed wins and evaluation
+            statistics); only ms/move timings differ slightly. Total run time
+            about 47 minutes. Two README timings were corrected from this run:
+            the reference benchmark takes about 7 minutes (not 5), and the
+            10-row control run about 20 seconds (entry 5's 30 s was measured
+            while another benchmark was using the CPU).

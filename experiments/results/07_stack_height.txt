@@ -1,0 +1,8 @@
+rows=5, 100 games, cap 2000
+setting      mean lines avg max h avg mean h % moves near top capped
+control            31.5      3.67       1.99            58.3%      0
+1x8:sum           101.3      3.61       1.88            56.1%      0
+2x8:sum           406.9      3.49       1.71            50.9%     18
+2x8:final         517.3      3.61       1.85            55.7%     43
+3x8:sum           684.3      3.45       1.65            49.2%     75
+3x8:final         752.5      3.55       1.77            53.0%     88

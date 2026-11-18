@@ -1,0 +1,19 @@
+Board 5x10, 100 games per setting (seeds 0-99), cap 5000 pieces, 11 workers
+
+setting                         mean lines    95% CI   median vs control  ms/move  capped
+-----------------------------------------------------------------------------------------
+no preview (control)                  31.5      ±5.1     25.5       1.0x     0.31   0/100
+preview 1, width 8, sum              101.3     ±16.8     76.0       3.2x     2.29   0/100
+preview 1, width 8, final            133.0     ±23.6     90.5       4.2x     2.24   0/100
+preview 2, width 2, sum              132.9     ±24.5     94.0       4.2x     1.44   0/100
+preview 2, width 2, final            288.1     ±56.3    183.0       9.1x     1.47   0/100
+preview 2, width 8, sum              481.9     ±83.5    362.5      15.3x     4.54   1/100
+preview 2, width 8, final            792.4    ±128.9    608.0      25.1x     4.40  11/100
+preview 2, width 32, sum             520.5     ±97.9    379.5      16.5x    12.41   3/100
+preview 2, width 32, final           787.9    ±126.7    525.5      25.0x    12.12  13/100
+preview 3, width 8, sum             1406.3    ±138.1   1849.5      44.6x     7.32  46/100
+preview 3, width 8, final           1709.0    ±109.9   1998.0      54.2x     7.12  73/100
+
+Capped games stopped early, so those settings' lines are lower bounds; raise --cap or lower --rows to measure them fully.
+
+Wrote 1100 games to /home/haya/Projects/3821-project/experiments/results/06_sum_vs_final.csv
