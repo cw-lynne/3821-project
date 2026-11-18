@@ -2,8 +2,10 @@
 """BCTS (Building Controllers for Tetris Systems).
 
 Fixed-weight BCTS controller using the published eight-feature
-linear evaluation function.
+linear evaluation function, with optional beam search.
 """
+
+from typing import NamedTuple
 
 from .base import Placement, TetrisAi
 from .bitboard import board_to_bits, col_heights, legal_placements
@@ -20,6 +22,16 @@ WEIGHTS = {
     "eroded_piece_cells": 6.60,
     "hole_depth": -1.61,
 }
+
+SCORE_MODES = ("sum", "final")
+
+
+class _Path(NamedTuple):
+    """A candidate line of play in beam search."""
+    score: float
+    first: object
+    bits: list
+    tie: tuple
 
 
 def board_from_bits(bits, cols):
@@ -49,9 +61,9 @@ def count_holes(board):
                 holes += 1
                 hole_depth += filled_above
 
-    # Count rows containing at least one hole.
     for r in range(rows):
         has_hole = False
+
         for c in range(cols):
             if not board[r][c]:
                 if any(board[above][c] for above in range(r)):
@@ -65,10 +77,7 @@ def count_holes(board):
 
 
 def count_row_transitions(board):
-    """Count filled/empty transitions across rows.
-
-    The left and right walls are treated as filled.
-    """
+    """Count filled/empty transitions across rows."""
     transitions = 0
     cols = len(board[0])
 
@@ -87,10 +96,7 @@ def count_row_transitions(board):
 
 
 def count_column_transitions(board):
-    """Count filled/empty transitions down columns.
-
-    The top and bottom boundaries are treated as filled.
-    """
+    """Count filled/empty transitions down columns."""
     transitions = 0
     rows = len(board)
 
@@ -109,12 +115,7 @@ def count_column_transitions(board):
 
 
 def count_cumulative_wells(board):
-    """Calculate the cumulative depth of vertical wells.
-
-    A well cell is empty with filled cells immediately to its
-    left and right. The outside walls count as filled.
-    A well of depth d contributes 1 + 2 + ... + d.
-    """
+    """Calculate the cumulative depth of vertical wells."""
     rows = len(board)
     cols = len(board[0])
     total = 0
@@ -144,18 +145,12 @@ def count_cumulative_wells(board):
 def count_eroded_piece_cells(board, piece, x, y):
     """Count piece cells in rows completed by the placement.
 
-    Returns:
-        Number of piece cells in completed rows, multiplied by
-        the number of completed rows.
+    board must be the board BEFORE placing the piece.
     """
     rows = len(board)
     cols = len(board[0])
-    full_rows = []
-
-    # Reconstruct the board before line clearing.
     placed_board = [row[:] for row in board]
 
-    # 'board' here is the original board, before placement.
     for pr, piece_row in enumerate(piece):
         for pc, cell in enumerate(piece_row):
             if cell:
@@ -165,9 +160,10 @@ def count_eroded_piece_cells(board, piece, x, y):
                 if 0 <= br < rows and 0 <= bc < cols:
                     placed_board[br][bc] = True
 
-    for r in range(rows):
-        if all(placed_board[r]):
-            full_rows.append(r)
+    full_rows = [
+        r for r in range(rows)
+        if all(placed_board[r])
+    ]
 
     piece_cells_in_cleared_rows = 0
 
@@ -179,9 +175,17 @@ def count_eroded_piece_cells(board, piece, x, y):
     return len(full_rows) * piece_cells_in_cleared_rows
 
 
-def evaluate(board, piece, x, y):
-    """Evaluate a placement using the eight BCTS features."""
+def evaluate(board, piece, x, y, original_board=None):
+    """Evaluate a placement using the eight BCTS features.
+
+    board: resulting board AFTER line clearing.
+    original_board: board BEFORE the placement, used for
+                    calculating eroded piece cells.
+    """
     holes, hole_depth, rows_with_holes = count_holes(board)
+
+    if original_board is None:
+        original_board = board
 
     features = {
         "rows_with_holes": rows_with_holes,
@@ -191,7 +195,7 @@ def evaluate(board, piece, x, y):
         "cumulative_wells": count_cumulative_wells(board),
         "row_transitions": count_row_transitions(board),
         "eroded_piece_cells": count_eroded_piece_cells(
-            board, piece, x, y
+            original_board, piece, x, y
         ),
         "hole_depth": hole_depth,
     }
@@ -204,20 +208,35 @@ def evaluate(board, piece, x, y):
 
 class BctsAi(TetrisAi):
     name = "bcts"
-    description = "BCTS fixed-weight heuristic"
+    description = "BCTS fixed-weight heuristic with optional beam search"
 
-    def choose(self, board, kind):
-        bits = board_to_bits(board)
-        cols = len(board[0])
-        heights = col_heights(bits, cols)
+    def __init__(
+        self,
+        preview=0,
+        beam_width=8,
+        score_mode="final",
+    ):
+        if preview < 0:
+            raise ValueError("preview must be >= 0")
 
-        best_score = float("-inf")
-        best_placement = None
+        if beam_width < 1:
+            raise ValueError("beam_width must be >= 1")
+
+        if score_mode not in SCORE_MODES:
+            raise ValueError(f"score_mode must be one of {SCORE_MODES}")
+
+        self.preview = preview
+        self.beam_width = beam_width
+        self.score_mode = score_mode
+
+    def _placements(self, bits, heights, kind):
+        """Generate all legal placements and evaluate resulting boards."""
+        cols = len(heights)
+        original_board = board_from_bits(bits, cols)
 
         for orientation, x, y, board_after, rows_cleared in (
             legal_placements(bits, heights, kind)
         ):
-            # Features are evaluated on the resulting board.
             resulting_board = board_from_bits(board_after, cols)
 
             score = evaluate(
@@ -225,13 +244,122 @@ class BctsAi(TetrisAi):
                 orientation.matrix,
                 x,
                 y,
+                original_board,
             )
 
-            if score > best_score:
-                best_score = score
-                best_placement = Placement(
-                    orientation.matrix,
-                    x,
-                )
+            yield orientation, x, score, board_after
 
-        return best_placement
+    def _first_moves(self, bits, heights, kind):
+        """Generate initial candidate paths for the current piece."""
+        paths = []
+
+        for i, (orientation, x, score, sim) in enumerate(
+            self._placements(bits, heights, kind)
+        ):
+            first = Placement(orientation.matrix, x)
+
+            paths.append(
+                _Path(
+                    score=score,
+                    first=first,
+                    bits=sim,
+                    tie=(i,),
+                )
+            )
+
+        return paths
+
+    def _select(self, paths):
+        """Merge duplicate boards and retain the best beam_width paths."""
+        merged = {}
+
+        for path in paths:
+            key = tuple(path.bits)
+            old = merged.get(key)
+
+            if old is None:
+                merged[key] = path
+
+            elif self.score_mode == "sum":
+                # In sum mode, retain the path with the highest
+                # accumulated score for this board.
+                if (-path.score, path.tie) < (-old.score, old.tie):
+                    merged[key] = path
+
+            else:
+                # In final mode, previous scores do not matter once
+                # two paths reach the same board. Keep the earliest path.
+                if path.tie < old.tie:
+                    merged[key] = path
+
+        ranked = sorted(
+            merged.values(),
+            key=lambda p: (-p.score, p.tie),
+        )
+
+        return ranked[:self.beam_width]
+
+    def choose(self, board, kind, next_kinds=()):
+        """Choose a placement, optionally using beam search."""
+        cols = len(board[0])
+
+        bits = board_to_bits(board)
+        heights = col_heights(bits, cols)
+
+        # Generate placements for the current piece.
+        paths = self._first_moves(bits, heights, kind)
+
+        if not paths:
+            return None
+
+        # Get upcoming pieces to search.
+        queue = list(next_kinds)[:self.preview]
+
+        # No preview: use the normal one-piece BCTS heuristic.
+        if not queue:
+            return min(
+                paths,
+                key=lambda p: (-p.score, p.tie)
+            ).first
+
+        # Initialise the beam with the best current placements.
+        beam = self._select(paths)
+
+        # Expand the beam using upcoming pieces.
+        for next_kind in queue:
+            children = []
+
+            for path in beam:
+                path_heights = col_heights(path.bits, cols)
+
+                for i, (_, _, step, sim) in enumerate(
+                    self._placements(
+                        path.bits,
+                        path_heights,
+                        next_kind,
+                    )
+                ):
+                    if self.score_mode == "sum":
+                        score = path.score + step
+                    else:
+                        score = step
+
+                    children.append(
+                        _Path(
+                            score=score,
+                            first=path.first,
+                            bits=sim,
+                            tie=path.tie + (i,),
+                        )
+                    )
+
+            # If no legal placements exist, return the best move
+            # from the previous beam.
+            if not children:
+                return beam[0].first
+
+            # Retain only the best candidate board states.
+            beam = self._select(children)
+
+        # Return the first move of the best sequence.
+        return beam[0].first
