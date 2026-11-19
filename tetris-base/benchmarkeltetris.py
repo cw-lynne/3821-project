@@ -5,9 +5,9 @@ Every setting plays the same seeds, so all settings see the same pieces.
 The control (no preview) runs the original El-Tetris algorithm first,
 and each setting is compared with it.
 
-    python3 benchmark_eltetris.py
-    python3 benchmark_eltetris.py --rows 6 --games 200 --settings 1x8 2x8 2x8:sum 3x16
-    python3 benchmark_eltetris.py --csv results.csv
+    python3 benchmarkeltetris.py
+    python3 benchmarkeltetris.py --rows 6 --games 200 --settings 1x8 2x8 2x8:sum 3x16
+    python3 benchmarkeltetris.py --csv results.csv
 
 A setting is PREVIEWxWIDTH[:MODE], e.g. 2x8 (2 preview pieces,
 beam width 8, default final scoring) or 3x16:sum.
