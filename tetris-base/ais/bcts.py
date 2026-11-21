@@ -77,7 +77,10 @@ def count_holes(board):
 
 
 def count_row_transitions(board):
-    """Count filled/empty transitions across rows."""
+    """Count filled/empty transitions across rows.
+
+    The left and right walls are treated as filled.
+    """
     transitions = 0
     cols = len(board[0])
 
@@ -96,12 +99,17 @@ def count_row_transitions(board):
 
 
 def count_column_transitions(board):
-    """Count filled/empty transitions down columns."""
+    """Count filled/empty transitions down columns.
+
+    The floor is treated as filled and the space above the board as empty.
+    Treating the top as filled would make a column that reaches the top row
+    2 transitions cheaper, rewarding stacks that build up to the ceiling.
+    """
     transitions = 0
     rows = len(board)
 
     for c in range(len(board[0])):
-        previous = True
+        previous = False
 
         for r in range(rows):
             if board[r][c] != previous:
@@ -115,7 +123,12 @@ def count_column_transitions(board):
 
 
 def count_cumulative_wells(board):
-    """Calculate the cumulative depth of vertical wells."""
+    """Calculate the cumulative depth of vertical wells.
+
+    A well cell is empty with filled cells immediately to its left and
+    right; the outside walls count as filled. A well of depth d
+    contributes 1 + 2 + ... + d.
+    """
     rows = len(board)
     cols = len(board[0])
     total = 0
