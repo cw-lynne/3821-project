@@ -1,11 +1,13 @@
-"""Benchmark the misakamm AI's beam search against the plain AI.
+"""Benchmark an AI's beam search against the same AI without a preview.
 
 Every setting plays the same seeds, so all settings see the same pieces. The
-control (no preview, which plays exactly like the C++ version) always runs
-first, and each setting is compared with it.
+control (no preview; for misakamm this plays exactly like the C++ version)
+always runs first, and each setting is compared with it. With several AIs,
+each gets its own control.
 
-    python3 benchmark.py                                   # default settings
+    python3 benchmark.py                                   # misakamm, default settings
     python3 benchmark.py --rows 6 --games 200 --settings 1x8 2x8 2x8:sum 3x16
+    python3 benchmark.py --ai misakamm bcts el-tetris --settings 1x8 2x8 3x8
     python3 benchmark.py --csv results.csv                 # also save every game
 
 A setting is PREVIEWxWIDTH[:MODE], e.g. 2x8 (2 preview pieces, beam width 8,
@@ -20,12 +22,13 @@ import statistics
 import time
 from multiprocessing import Pool
 
-from ais import play_turn
-from ais.misakamm import DEFAULT_SCORE_MODE, SCORE_MODES, MisakammAi
+from ais import AI_CLASSES, AIS, play_turn
+from ais.misakamm import DEFAULT_SCORE_MODE, SCORE_MODES
 from tetris_base import MAX_ROWS, Tetris
 
 CONTROL = (0, 1, DEFAULT_SCORE_MODE)  # No preview: the plain AI. Width and mode are unused.
 DEFAULT_SETTINGS = ["1x8", "2x8", "2x8:sum", "3x8"]
+BEAM_SEARCH_AIS = [cls.name for cls in AI_CLASSES if cls.beam_search]
 
 
 def parse_setting(text):
@@ -49,14 +52,14 @@ def label(setting):
 
 def play_game(job):
     """Play one game to game over or the piece cap; runs in a worker process."""
-    (preview, width, mode), rows, cols, seed, cap = job
+    name, (preview, width, mode), rows, cols, seed, cap = job
     game = Tetris(rows, cols, seed)
-    ai = MisakammAi(preview=preview, beam_width=width, score_mode=mode)
+    ai = AIS[name](preview=preview, beam_width=width, score_mode=mode)
     start = time.perf_counter()
     while not game.game_over and (cap <= 0 or game.pieces_placed < cap):
         play_turn(game, ai)
     return {
-        "preview": preview, "width": width, "mode": mode, "seed": seed,
+        "ai": name, "preview": preview, "width": width, "mode": mode, "seed": seed,
         "lines": game.lines_cleared, "pieces": game.pieces_placed,
         "seconds": time.perf_counter() - start, "capped": not game.game_over,
     }
@@ -78,9 +81,11 @@ def summarize(results, control_mean):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Benchmark misakamm beam-search settings against the plain AI.",
+        description="Benchmark beam-search settings against the AI without a preview.",
         epilog="Lines-cleared results vary a lot between games (roughly exponentially), "
                "so use 100+ games per setting; ~300 gives about +-10% on the mean.")
+    parser.add_argument("--ai", nargs="+", choices=BEAM_SEARCH_AIS, default=["misakamm"],
+                        help="AIs to benchmark, each against its own control (default misakamm)")
     parser.add_argument("--settings", nargs="*", type=parse_setting,
                         default=[parse_setting(s) for s in DEFAULT_SETTINGS], metavar="PxW[:MODE]",
                         help=f"beam settings to test (default: {' '.join(DEFAULT_SETTINGS)}); "
@@ -102,6 +107,7 @@ def main():
 
     settings = [CONTROL] + [s for s in dict.fromkeys(args.settings) if s != CONTROL]
     seeds = range(args.first_seed, args.first_seed + args.games)
+    names = list(dict.fromkeys(args.ai))
     print(f"Board {args.rows}x{args.cols}, {args.games} games per setting (seeds {seeds.start}-"
           f"{seeds.stop - 1}), {f'cap {args.cap} pieces' if args.cap else 'no cap'}, "
           f"{args.workers} workers\n")
@@ -111,18 +117,21 @@ def main():
     print("-" * len(header))
 
     all_results = []
-    control_mean = None
     with Pool(args.workers) as pool:
-        for setting in settings:
-            jobs = [(setting, args.rows, args.cols, seed, args.cap) for seed in seeds]
-            results = pool.map(play_game, jobs, chunksize=1)
-            all_results.extend(results)
-            if control_mean is None:
-                control_mean = statistics.mean(r["lines"] for r in results)
-            s = summarize(results, control_mean)
-            print(f"{label(setting):<30} {s['mean']:>11.1f} {'±' + format(s['ci'], '.1f'):>9} "
-                  f"{s['median']:>8.1f} {s['ratio']:>9.1f}x {s['ms_per_move']:>8.2f} "
-                  f"{s['capped']:>3}/{len(results)}", flush=True)
+        for name in names:
+            if len(names) > 1:
+                print(name)
+            control_mean = None
+            for setting in settings:
+                jobs = [(name, setting, args.rows, args.cols, seed, args.cap) for seed in seeds]
+                results = pool.map(play_game, jobs, chunksize=1)
+                all_results.extend(results)
+                if control_mean is None:
+                    control_mean = statistics.mean(r["lines"] for r in results)
+                s = summarize(results, control_mean)
+                print(f"{label(setting):<30} {s['mean']:>11.1f} {'±' + format(s['ci'], '.1f'):>9} "
+                      f"{s['median']:>8.1f} {s['ratio']:>9.1f}x {s['ms_per_move']:>8.2f} "
+                      f"{s['capped']:>3}/{len(results)}", flush=True)
 
     if any(r["capped"] for r in all_results):
         print("\nCapped games stopped early, so those settings' lines are lower bounds; "

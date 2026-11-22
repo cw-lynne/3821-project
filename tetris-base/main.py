@@ -8,6 +8,7 @@
 import argparse
 
 from ais import AI_CLASSES, AIS, DEFAULT_AI, play_turn
+from ais.misakamm import DEFAULT_SCORE_MODE, SCORE_MODES
 from tetris_base import HEIGHT, MAX_COLS, MAX_ROWS, WIDTH, Tetris
 
 
@@ -36,13 +37,26 @@ def build_parser():
     parser.add_argument("--rows", type=int, default=HEIGHT, help=f"board rows, 1-{MAX_ROWS}")
     parser.add_argument("--cols", type=int, default=WIDTH, help=f"board cols, 1-{MAX_COLS}")
     parser.add_argument("--seed", type=int, default=None, help="piece seed (random if omitted)")
+    beam = parser.add_argument_group(
+        f"beam search options ({', '.join(cls.name for cls in AI_CLASSES if cls.beam_search)})")
+    beam.add_argument("--preview", type=int, default=0, metavar="N",
+                      help="number of upcoming pieces the AI sees and searches "
+                           "(default 0 = no search, the AI's original play)")
+    beam.add_argument("--beam-width", type=int, default=8, metavar="K",
+                      help="lines of play kept after each piece of the beam search (default 8)")
+    beam.add_argument("--score-mode", choices=SCORE_MODES, default=DEFAULT_SCORE_MODE,
+                      help="score a line by the sum of its placements' evaluations or by "
+                           f"the last one only (default {DEFAULT_SCORE_MODE})")
     for cls in AI_CLASSES:
         cls.add_arguments(parser.add_argument_group(f"{cls.name} AI options"))
     return parser
 
 
 def main():
-    args = build_parser().parse_args()
+    parser = build_parser()
+    args = parser.parse_args()
+    if args.preview and not AIS[args.ai].beam_search:
+        parser.error(f"--preview is not supported by the {args.ai} AI")
     ai = AIS[args.ai].from_args(args)
     if args.headless:
         run_headless(ai, args.pieces, args.rows, args.cols, args.seed)

@@ -196,3 +196,177 @@ session's results. Entries from 11 onwards were logged as they were run.
             the reference benchmark takes about 7 minutes (not 5), and the
             10-row control run about 20 seconds (entry 5's 30 s was measured
             while another benchmark was using the CPU).
+
+16. Teammates' beam search through main.py
+   Date:    2026-11-21
+   Command: (on main 5da69ee, in tetris-base/)
+            python3 main.py --headless --ai bcts --rows 6 --seed 3 --pieces 0 --preview 0
+            python3 main.py --headless --ai bcts --rows 6 --seed 3 --pieces 0 --preview 2
+            (on origin/el-tetris_beamsearch bce7ad1, in a temporary worktree)
+            python3 main.py --help
+   Does:    Runs BCTS with and without a preview from the command line, and
+            starts main.py on the El-Tetris beam search branch.
+   Tests:   Whether the new BCTS and El-Tetris beam search can be used from
+            main.py.
+   Result:  BCTS gives the same game with --preview 0 and 2 (pieces=26
+            lines=6): BctsAi has no from_args, so --preview (misakamm's flag)
+            is ignored. On the El-Tetris branch, main.py crashes with
+            "argparse.ArgumentError: argument --preview: conflicting option
+            string", because ElTetrisAi adds the same flag names as misakamm.
+
+17. Teammates' beam search benchmarks, small run
+   Date:    2026-11-21
+   Command: python3 benchmarkbcts.py --games 11 --cap 300 --settings 1x8 2x8   (main)
+            python3 benchmarkeltetris.py --games 11 --cap 300 --settings 1x8 2x8
+            (El-Tetris branch, temporary worktree)
+   Does:    Plays the control and 1x8, 2x8 (final scoring) on 11 seeds,
+            5-row board, cap 300, using the teammates' own benchmark scripts.
+   Tests:   That both benchmarks run, and a first look at strength and speed.
+   Result:  BCTS: control 2.8, 1x8 3.5, 2x8 8.8 mean lines (0.6 / 3.3 / 5.2
+            ms per move). El-Tetris: control 11.8, 1x8 31.5, 2x8 39.4 (0.24 /
+            1.6 / 2.7 ms). Both preview searches help, but plain BCTS is far
+            weaker than expected (published BCTS is stronger than El-Tetris).
+
+18. BCTS column transitions: top of board filled vs empty
+   Script:  experiments/bcts_column_transitions.py
+   Date:    2026-11-21
+   Does:    Plays BCTS as on main (column transitions count the space above
+            the board as filled) and with the top counted as empty (the usual
+            definition), plus El-Tetris and Misakamm as reference points, all
+            without a preview on the same seeds: 100 games on 5 rows and 20
+            games on 10 rows, cap 5000.
+   Tests:   Whether the top-filled boundary, which rewards stacks that reach
+            the ceiling by 2 x 19.77, explains BCTS's weak results.
+   Result:  5 rows: BCTS main 2.5, top empty 30.8, El-Tetris 16.6,
+            Misakamm 31.5 mean lines. 10 rows: BCTS main 592.2, top empty
+            >= 1735.0 (15/20 capped), El-Tetris 807.7, Misakamm >= 1626.0
+            (13/20 capped). The boundary is the main cause: fixing it makes
+            BCTS about 12 times stronger on 5 rows, level with Misakamm.
+   Note:    The script was later changed (entry 19) so that the old
+            top-filled version is defined inside it and "bcts (current)" uses
+            bcts.py; its variant labels now differ from the ones above.
+
+19. BCTS column transitions fix, verified
+   Script:  experiments/bcts_column_transitions.py
+   Date:    2026-11-21
+   Does:    Same games as entry 18, after bcts.py on the bug-fix branch was
+            changed to count the space above the board as empty. The old
+            top-filled function is now defined in the script for comparison.
+   Tests:   That the fixed bcts.py plays exactly like entry 18's "top empty"
+            variant, and that the before/after numbers are unchanged.
+   Result:  Identical to entry 18. 5 rows: top filled 2.5, current 30.8
+            (median 27.0), El-Tetris 16.6, Misakamm 31.5. 10 rows: top filled
+            592.2, current >= 1735.0 (15/20 capped), El-Tetris 807.7,
+            Misakamm >= 1626.0 (13/20 capped).
+
+20. Plain BCTS vs plain Misakamm, 10 rows, no cap
+   Script:  experiments/bcts_vs_misakamm_uncapped.py 50
+   Date:    2026-11-21
+   Does:    Plays the fixed BCTS (bug-fix branch) and Misakamm, both without
+            a preview, on 50 paired seeds (0-49), 10-row board, every game to
+            game over.
+   Tests:   Whether BCTS really beats Misakamm on 10 rows, as the capped run
+            in entries 18-19 (>= 1735.0 vs >= 1626.0) seemed to suggest.
+   Result:  BCTS mean 3911.6 +- 886.4, median 3006.0 (min 68, max 11364).
+            Misakamm mean 7292.4 +- 2295.8, median 4075.5 (min 345, max
+            37866). BCTS better on 20/50 seeds, worse on 30, sign test
+            p = 0.203. Misakamm is ahead (about 1.9x the mean, 1.4x the
+            median); the capped run's BCTS lead came from the cap. 2m23s.
+
+21. Plain BCTS vs plain Misakamm across board heights, no cap
+   Script:  experiments/bcts_vs_misakamm_heights.py 100 5 6 7 8 9
+   Date:    2026-11-21
+   Does:    Plays the fixed BCTS (bug-fix branch) and Misakamm, both without
+            a preview, on 100 paired seeds (0-99) at heights 5-9, every game
+            to game over.
+   Tests:   Whether Misakamm's lead over BCTS grows with board height, which
+            would reconcile the near tie on 5 rows with the published 20-row
+            records (Misakamm 270M vs Thiery & Scherrer 35M lines).
+   Result:  Misakamm / BCTS (mean ratio, median ratio, Misakamm wins, sign
+            test p): 5 rows 1.02x, 0.94x, 51/100, 0.841; 6 rows 1.33x, 1.17x,
+            55/100, 0.266; 7 rows 1.21x, 1.35x, 55/100, 0.368; 8 rows 1.54x,
+            1.74x, 59/100, 0.070; 9 rows 1.67x, 1.86x, 65/100, 0.004. Means:
+            BCTS 30.8 / 72.5 / 213.9 / 551.8 / 1339.6, Misakamm 31.5 / 96.7 /
+            257.9 / 852.4 / 2235.3. The gap grows with height and is
+            significant from 9 rows; with entry 20 (10 rows: 1.86x mean,
+            1.36x median), consistent with Misakamm being stronger on tall
+            boards. 2m00s.
+
+22. BCTS row transitions: every row vs stack rows only
+   Script:  experiments/bcts_row_transitions.py 100 5 8
+   Date:    2026-11-21
+   Does:    Plays the fixed BCTS (bug-fix branch) with row transitions over
+            every row (bcts.py) and over only the rows from the highest
+            filled cell down (as El-Tetris counts them), 100 paired seeds
+            (0-99) on 5 and 8 rows, no cap, no preview.
+   Tests:   Whether counting the empty rows above the stack (2 transitions
+            each, so a reward of 18.44 per row of stack height) is a bug like
+            the column-transitions one.
+   Result:  5 rows: every row 30.8, stack only 32.4 mean lines (stack only
+            better on 51/100, worse on 45, p = 0.610). 8 rows: every row
+            551.8, stack only 355.3 (better on 39/100, worse on 61,
+            p = 0.035). Counting every row is the stronger definition, so
+            bcts.py is left as it is. 35s.
+
+23. El-Tetris landing height and row transitions definitions
+   Script:  experiments/eltetris_feature_variants.py 100 5 8
+   Date:    2026-11-21
+   Does:    Plays El-Tetris as on main (landing height = the piece's bottom
+            row; row transitions only from the highest filled cell down)
+            against landing height = bottom + piece height / 2 (El-Ashi's
+            wording), row transitions over every row, and both, on 100 paired
+            seeds (0-99), 5 and 8 rows, no cap, no preview. Checked first
+            that the "main" variant plays the same games as ElTetrisAi
+            (seeds 0-2: 11, 1, 16 lines for both).
+   Tests:   Whether either definition explains El-Tetris being about half as
+            strong as BCTS and Misakamm on 5 rows.
+   Result:  5 rows (mean lines; better than main on N/100, sign test p):
+            main 16.6; landing mid 16.4, 32/100, 0.630; all rows 6.4, 18/100,
+            0.000; both 6.9, 22/100, 0.000. 8 rows: main 182.9; landing mid
+            206.1, 42/100, 0.305; all rows 132.0, 34/100, 0.002; both 182.5,
+            45/100, 0.368. Neither change helps significantly, so main's
+            definitions are kept; El-Tetris is simply weaker on short boards.
+            9s.
+
+24. Beam-search fixes leave no-preview play unchanged
+   Script:  experiments/no_preview_games.py [path/to/tetris-base]
+   Date:    2026-11-22
+   Does:    Prints lines and pieces for misakamm, bcts and el-tetris without
+            a preview, seeds 0-199 on 5 rows and 0-29 on 8 rows, no cap (690
+            games). Run on the bug-fix tree after the beam-search fixes (BCTS
+            from_args and final-mode merge; El-Tetris branch merged with its
+            flags moved to main.py, immutable _Path and search-order ties),
+            on a temporary worktree of 882a348 (before the fixes), and on one
+            of origin/el-tetris_beamsearch. Also ran main.py --headless --rows
+            10 --seed 6 --pieces 0.
+   Tests:   That the fixes change only the beam search, and that the El-Tetris
+            branch's centre-bias tie-break changed no-preview play.
+   Result:  Fixed tree and 882a348 outputs are byte-identical. On the El-Tetris
+            branch, 101/200 5-row and 28/30 8-row El-Tetris games differ (mean
+            13.9 vs 15.8 lines on 5 rows, 183.9 vs 177.6 on 8 rows). main.py
+            still gives pieces=30204 lines=12073 (matches the C++), and runs
+            for every AI; --ai bcts --preview 2 now searches (seed 3, 5 rows:
+            314 lines vs 25 without), --ai random --preview 2 is rejected.
+
+25. All beam-search AIs, previews 0-3
+   Script:  cd tetris-base && python3 benchmark.py --ai misakamm bcts el-tetris
+            --games 100 --settings 1x8 2x8 3x8
+            --csv ../experiments/results/25_all_beam_ais.csv
+   Date:    2026-11-22
+   Does:    Plays misakamm, bcts and el-tetris (bug-fix branch, after the
+            beam-search fixes in entry 24) with no preview and with previews
+            1, 2, 3 at beam width 8, final scoring, on seeds 0-99 of a 5-row
+            board, cap 5000. Output in results/25_all_beam_ais.txt; per-AI
+            paired sign tests were then computed from the CSV.
+   Tests:   How much each AI gains from a preview, and how the AIs compare at
+            each preview length.
+   Result:  Mean lines (vs own control; capped games):
+            misakamm   31.5 / 133.0 (4.2x) / 792.4 (25.1x, 11) / 1709.0 (54.2x, 73)
+            bcts       30.8 / 101.6 (3.3x) / 796.5 (25.9x, 9)  / 1743.9 (56.6x, 72)
+            el-tetris  16.6 /  26.7 (1.6x) /  62.2 (3.7x, 0)   /  325.2 (19.6x, 1)
+            ms/move at 3x8: misakamm 7.48, bcts 15.72, el-tetris 6.32.
+            Misakamm's rows match the README (unchanged by the fixes).
+            Paired sign tests, misakamm vs bcts: previews 0-3 p = 0.841,
+            0.070, 0.688, 0.326 (no significant difference). Misakamm and
+            bcts each beat el-tetris at every preview (p <= 0.001; at 3x8
+            95/100 and 97/100 seeds). 22m00s.

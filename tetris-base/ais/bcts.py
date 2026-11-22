@@ -77,7 +77,10 @@ def count_holes(board):
 
 
 def count_row_transitions(board):
-    """Count filled/empty transitions across rows."""
+    """Count filled/empty transitions across rows.
+
+    The left and right walls are treated as filled.
+    """
     transitions = 0
     cols = len(board[0])
 
@@ -96,12 +99,17 @@ def count_row_transitions(board):
 
 
 def count_column_transitions(board):
-    """Count filled/empty transitions down columns."""
+    """Count filled/empty transitions down columns.
+
+    The floor is treated as filled and the space above the board as empty.
+    Treating the top as filled would make a column that reaches the top row
+    2 transitions cheaper, rewarding stacks that build up to the ceiling.
+    """
     transitions = 0
     rows = len(board)
 
     for c in range(len(board[0])):
-        previous = True
+        previous = False
 
         for r in range(rows):
             if board[r][c] != previous:
@@ -115,7 +123,12 @@ def count_column_transitions(board):
 
 
 def count_cumulative_wells(board):
-    """Calculate the cumulative depth of vertical wells."""
+    """Calculate the cumulative depth of vertical wells.
+
+    A well cell is empty with filled cells immediately to its left and
+    right; the outside walls count as filled. A well of depth d
+    contributes 1 + 2 + ... + d.
+    """
     rows = len(board)
     cols = len(board[0])
     total = 0
@@ -208,6 +221,7 @@ def evaluate(board, piece, x, y, original_board=None):
 
 class BctsAi(TetrisAi):
     name = "bcts"
+    beam_search = True
     description = "BCTS fixed-weight heuristic with optional beam search"
 
     def __init__(
@@ -228,6 +242,14 @@ class BctsAi(TetrisAi):
         self.preview = preview
         self.beam_width = beam_width
         self.score_mode = score_mode
+
+    @classmethod
+    def from_args(cls, args):
+        return cls(
+            preview=args.preview,
+            beam_width=args.beam_width,
+            score_mode=args.score_mode,
+        )
 
     def _placements(self, bits, heights, kind):
         """Generate all legal placements and evaluate resulting boards."""
@@ -269,8 +291,11 @@ class BctsAi(TetrisAi):
 
         return paths
 
-    def _select(self, paths):
-        """Merge duplicate boards and retain the best beam_width paths."""
+    def _select(self, paths, last):
+        """Merge duplicate boards and retain the best beam_width paths.
+
+        `last` is True after the final piece of the search.
+        """
         merged = {}
 
         for path in paths:
@@ -280,17 +305,18 @@ class BctsAi(TetrisAi):
             if old is None:
                 merged[key] = path
 
-            elif self.score_mode == "sum":
-                # In sum mode, retain the path with the highest
-                # accumulated score for this board.
-                if (-path.score, path.tie) < (-old.score, old.tie):
-                    merged[key] = path
+            elif self.score_mode == "final" and not last:
+                # In final mode, what follows depends only on the board,
+                # so keep the first move that would win a tie, with the
+                # higher score used for pruning.
+                winner = old if old.tie <= path.tie else path
+                merged[key] = winner._replace(
+                    score=max(old.score, path.score)
+                )
 
-            else:
-                # In final mode, previous scores do not matter once
-                # two paths reach the same board. Keep the earliest path.
-                if path.tie < old.tie:
-                    merged[key] = path
+            elif (-path.score, path.tie) < (-old.score, old.tie):
+                # Otherwise retain the path with the higher score.
+                merged[key] = path
 
         ranked = sorted(
             merged.values(),
@@ -323,10 +349,11 @@ class BctsAi(TetrisAi):
             ).first
 
         # Initialise the beam with the best current placements.
-        beam = self._select(paths)
+        beam = self._select(paths, last=False)
 
         # Expand the beam using upcoming pieces.
-        for next_kind in queue:
+        for depth, next_kind in enumerate(queue):
+            last = depth == len(queue) - 1
             children = []
 
             for path in beam:
@@ -353,13 +380,18 @@ class BctsAi(TetrisAi):
                         )
                     )
 
-            # If no legal placements exist, return the best move
-            # from the previous beam.
+            # If every retained path tops out, return the best move
+            # from the previous level, judged on the unmerged paths so
+            # each score matches its first move.
             if not children:
-                return beam[0].first
+                return min(
+                    paths,
+                    key=lambda p: (-p.score, p.tie)
+                ).first
 
             # Retain only the best candidate board states.
-            beam = self._select(children)
+            paths = children
+            beam = self._select(children, last)
 
         # Return the first move of the best sequence.
         return beam[0].first

@@ -34,12 +34,13 @@ Flags for `main.py` (single games):
 
 | Flag | Default | Meaning |
 |---|---|---|
+| `--ai NAME` | misakamm | Which AI plays: `misakamm`, `random`, `el-tetris` or `bcts` |
 | `--headless` | off | Play without a window and print `pieces=... lines=...` |
 | `--rows N` | 20 | Board height (1-31) |
 | `--cols N` | 10 | Board width (1-14) |
 | `--seed N` | random | Seed for the piece sequence. The same seed always gives the same pieces, in both Python and C++ |
 | `--pieces N` | 10000 | Stop after N pieces; 0 plays until game over. On a 20-row board the AI almost never loses, so keep a limit there |
-| `--preview N` | 0 | Upcoming pieces the AI sees (see section 2). 0 plays exactly like the C++ |
+| `--preview N` | 0 | Upcoming pieces the AI sees (see section 2). 0 plays exactly like the C++. Works for `misakamm`, `bcts` and `el-tetris` |
 | `--beam-width K` | 8 | Beam width when `--preview` is above 0 |
 | `--score-mode` | final | `final` or `sum`, see section 2 |
 
@@ -90,6 +91,7 @@ Flags for `benchmark.py`:
 
 | Flag | Default | Meaning |
 |---|---|---|
+| `--ai NAME ...` | misakamm | AIs to benchmark: any of `misakamm`, `bcts`, `el-tetris`. Each runs every setting against its own control |
 | `--settings S ...` | `1x8 2x8 2x8:sum 3x8` | Preview settings to run. The control (no preview) always runs first. Give no settings to run only the control |
 | `--rows N` | 5 | Board height. Short boards keep games short; with a preview the AI rarely loses on tall boards |
 | `--cols N` | 10 | Board width |
@@ -97,7 +99,7 @@ Flags for `benchmark.py`:
 | `--first-seed N` | 0 | Games use seeds N to N + games - 1 |
 | `--cap N` | 5000 | Stop a game after N pieces; 0 means no cap |
 | `--workers N` | CPU count - 1 | Games played in parallel |
-| `--csv FILE` | off | Also write every game (setting, seed, lines, pieces, time, capped) to a CSV file |
+| `--csv FILE` | off | Also write every game (AI, setting, seed, lines, pieces, time, capped) to a CSV file |
 
 Output columns:
 
@@ -129,14 +131,18 @@ game, so use 100 or more games per setting.
   moves, and R starts a new game. Pieces the AI could see are outlined in
   yellow.
 - Other AIs: `--ai random`, `--ai el-tetris` and `--ai bcts` select the other
-  AIs. `python3 init_comparison.py` plays all of them without a preview on
-  seeds 0-4 of a 10-row board and prints lines cleared per game.
+  AIs. `el-tetris` and `bcts` use the same beam search and `--preview`,
+  `--beam-width` and `--score-mode` options as `misakamm`.
+  `python3 init_comparison.py` plays all of them without a preview on seeds
+  0-4 of a 10-row board and prints lines cleared per game.
 - Adding an AI: subclass `TetrisAi` in a new file under `tetris-base/ais/`
   (`ais/random_ai.py` is a minimal example), implement
   `choose(board, kind)` returning a `Placement` or `None`, and add the class to
   `AI_CLASSES` in `ais/__init__.py`. To receive upcoming pieces, set
   `self.preview` to the number of pieces required and accept
-  `choose(board, kind, next_kinds)`.
+  `choose(board, kind, next_kinds)`. To take the shared `--preview`,
+  `--beam-width` and `--score-mode` options, set `beam_search = True` and read
+  them in `from_args`.
 - Files: `main.py` (command line), `tetris_base.py` (game), `pcg.py` (piece
   generator), `viewer.py`, `benchmark.py`, `init_comparison.py`, and
   `ais/` (the AIs and shared bitboard helpers).

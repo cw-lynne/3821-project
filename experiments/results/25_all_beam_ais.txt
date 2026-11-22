@@ -1,0 +1,23 @@
+Board 5x10, 100 games per setting (seeds 0-99), cap 5000 pieces, 11 workers
+
+setting                         mean lines    95% CI   median vs control  ms/move  capped
+-----------------------------------------------------------------------------------------
+misakamm
+no preview (control)                  31.5      ±5.1     25.5       1.0x     0.36   0/100
+preview 1, width 8, final            133.0     ±23.6     90.5       4.2x     2.30   0/100
+preview 2, width 8, final            792.4    ±128.9    608.0      25.1x     4.63  11/100
+preview 3, width 8, final           1709.0    ±109.9   1998.0      54.2x     7.48  73/100
+bcts
+no preview (control)                  30.8      ±5.8     27.0       1.0x     0.86   0/100
+preview 1, width 8, final            101.6     ±21.0     65.0       3.3x     5.20   0/100
+preview 2, width 8, final            796.5    ±124.8    617.0      25.9x    10.18   9/100
+preview 3, width 8, final           1743.9     ±97.8   1998.0      56.6x    15.72  72/100
+el-tetris
+no preview (control)                  16.6      ±3.3     12.0       1.0x     0.31   0/100
+preview 1, width 8, final             26.7      ±5.3     17.5       1.6x     2.01   0/100
+preview 2, width 8, final             62.2     ±11.3     44.5       3.7x     4.05   0/100
+preview 3, width 8, final            325.2     ±71.5    173.0      19.6x     6.32   1/100
+
+Capped games stopped early, so those settings' lines are lower bounds; raise --cap or lower --rows to measure them fully.
+
+Wrote 1200 games to ../experiments/results/25_all_beam_ais.csv
