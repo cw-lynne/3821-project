@@ -1,3 +1,5 @@
+from typing import NamedTuple
+
 from .base import Placement, TetrisAi
 from .bitboard import board_to_bits, col_heights, legal_placements
 
@@ -62,20 +64,18 @@ def _features(rows, width):
     return row_trans, col_trans, holes, wells
 
 
-class _Path:
+class _Path(NamedTuple):
     """A line of play in the beam search."""
 
-    __slots__ = ("score", "tie", "first", "bits")
-
-    def __init__(self, score, tie, first, bits):
-        self.score = score
-        self.tie = tie
-        self.first = first
-        self.bits = bits
+    score: float
+    tie: tuple
+    first: object
+    bits: list
 
 
 class ElTetrisAi(TetrisAi):
     name = "el-tetris"
+    beam_search = True
     description = (
         "El-Tetris with optional beam search over a piece preview "
         "(landing height, eroded cells, transitions, holes, wells)"
@@ -97,29 +97,6 @@ class ElTetrisAi(TetrisAi):
         self.preview = preview
         self.beam_width = beam_width
         self.score_mode = score_mode
-
-    @classmethod
-    def add_arguments(cls, parser):
-        parser.add_argument(
-            "--preview",
-            type=int,
-            default=0,
-            metavar="N",
-            help="el-tetris: number of upcoming pieces to search (default 0)",
-        )
-        parser.add_argument(
-            "--beam-width",
-            type=int,
-            default=8,
-            metavar="K",
-            help="el-tetris: number of lines retained in beam search (default 8)",
-        )
-        parser.add_argument(
-            "--score-mode",
-            choices=SCORE_MODES,
-            default=DEFAULT_SCORE_MODE,
-            help="el-tetris: score paths by sum of evaluations or final board only",
-        )
 
     @classmethod
     def from_args(cls, args):
@@ -182,16 +159,12 @@ class ElTetrisAi(TetrisAi):
         for i, (o, x, score, sim) in enumerate(
             self._placements(bits, heights, kind, width, n_rows)
         ):
-            # Deterministic tie-breaking: prefer the piece closest to center,
-            # then smaller C++ x position, then original search order.
-            center_bias = abs(
-                2 * x + o.width - 1 - (width - 1)
-            )
-
+            # Ties go to the first placement in search order, as in the
+            # original El-Tetris.
             paths.append(
                 _Path(
                     score,
-                    (center_bias, x - o.offset, i),
+                    (i,),
                     Placement(o.matrix, x),
                     sim,
                 )
@@ -215,8 +188,9 @@ class ElTetrisAi(TetrisAi):
                 # Preserve the best first-move tie-break while retaining
                 # the maximum score for beam pruning.
                 winner = old if old.tie <= p.tie else p
-                winner.score = max(old.score, p.score)
-                merged[key] = winner
+                merged[key] = winner._replace(
+                    score=max(old.score, p.score)
+                )
 
             elif (-p.score, p.tie) < (-old.score, old.tie):
                 merged[key] = p
@@ -273,12 +247,7 @@ class ElTetrisAi(TetrisAi):
                         score = step
 
                     children.append(
-                        _Path(
-                            score,
-                            path.tie,
-                            path.first,
-                            sim,
-                        )
+                        path._replace(score=score, bits=sim)
                     )
 
             if not children:

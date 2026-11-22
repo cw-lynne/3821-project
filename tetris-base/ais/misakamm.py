@@ -174,6 +174,7 @@ class _Path(NamedTuple):
 
 class MisakammAi(TetrisAi):
     name = "misakamm"
+    beam_search = True
     description = ("port of Misakamm's C++ SimpleAi (~270M lines on a 20x10 board), "
                    "with optional beam search over a piece preview")
 
@@ -190,18 +191,6 @@ class MisakammAi(TetrisAi):
         self.score_mode = score_mode
         self._well_tables = None
         self._well_tables_key = None
-
-    @classmethod
-    def add_arguments(cls, parser):
-        parser.add_argument("--preview", type=int, default=0, metavar="N",
-                            help="misakamm: number of upcoming pieces the AI sees and "
-                                 "searches (default 0 = same play as the C++)")
-        parser.add_argument("--beam-width", type=int, default=8, metavar="K",
-                            help="misakamm: lines of play kept after each piece of the "
-                                 "beam search (default 8)")
-        parser.add_argument("--score-mode", choices=SCORE_MODES, default=DEFAULT_SCORE_MODE,
-                            help="misakamm: score a line by the sum of its placements' "
-                                 f"evaluations or by the last one only (default {DEFAULT_SCORE_MODE})")
 
     @classmethod
     def from_args(cls, args):

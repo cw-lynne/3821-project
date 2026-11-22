@@ -25,6 +25,9 @@ class TetrisAi(ABC):
     # How many upcoming pieces (beyond the current one) the AI is shown. An AI
     # that sets this above 0 must accept a `next_kinds` argument in choose().
     preview = 0
+    # True if the AI takes main.py's shared --preview, --beam-width and
+    # --score-mode options (read them in from_args).
+    beam_search = False
 
     @abstractmethod
     def choose(self, board, kind):
