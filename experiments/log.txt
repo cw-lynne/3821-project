@@ -500,3 +500,62 @@ session's results. Entries from 11 onwards were logged as they were run.
             against an expected noise sd of about 93 for two 100-game means
             at 2x8) are noise; unmerged ahead at all 4 widths has two-sided
             chance probability 0.125. 12m58s.
+
+30. Previews 1-5 at width 4 (preliminary)
+   Script:  cd tetris-base && python3 benchmark.py --rows 4 --games 50 --cap 5000
+            --settings 1x4 2x4 3x4 4x4 5x4
+            --csv ../experiments/results/30_previews_1_to_5.csv
+   Date:    2026-11-22
+   Does:    Plays Misakamm with no preview and with previews 1-5 at beam
+            width 4 (final scoring) on seeds 0-49, 4-row board (5 rows would
+            cap nearly every game at previews 4-5), cap 5000. Sign tests
+            between consecutive previews computed from the CSV. Output in
+            results/30_previews_1_to_5.txt.
+   Tests:   A fast first look at how much previews 4 and 5 add.
+   Result:  Mean lines (vs control; median; capped): control 9.1; preview 1
+            21.3 (2.3x; 13.0); 2 56.3 (6.2x; 32.0); 3 169.5 (18.7x; 151.0);
+            4 475.7 (52.5x; 299.5; 1/50); 5 >= 700.1 (77.3x; 616.5; 5/50).
+            Each preview vs the one before (better / worse, p): 1 vs 0 34/15,
+            0.0094; 2 vs 1 39/9, 1.5e-05; 3 vs 2 40/10, 2.4e-05; 4 vs 3
+            39/10, 3.8e-05; 5 vs 4 28/22, 0.48. Each preview up to 4 roughly
+            triples lines cleared (x2.3, x2.6, x3.0, x2.8); preview 5 adds
+            x1.5 on the mean and is not significantly better than 4 per seed.
+            Preliminary: 50 games, width 4 only, 5 preview-5 games capped.
+            ms/move 0.27 / 1.04 / 1.74 / 2.63 / 3.52 / 4.77. 1m19s.
+
+31. Previews 3-5 at width 8 (stopped by the time limit)
+   Script:  cd tetris-base && timeout 1200 python3 benchmark.py --rows 4 --games 200
+            --cap 10000 --settings 3x8 4x8 5x8
+            --csv ../experiments/results/31_previews_3_to_5_width8.csv
+   Date:    2026-11-22
+   Does:    Plays Misakamm with no preview and previews 3, 4, 5 at beam width
+            8 (final scoring) on seeds 0-199, 4-row board, cap 10000, with a
+            20-minute limit. Output in results/31_previews_3_to_5_width8.txt.
+   Tests:   Whether entry 30's flattening at preview 5 is real or caused by
+            the narrow width 4 and the small sample.
+   Result:  Stopped at 20m00s during 5x8; the CSV is written only at the end,
+            so no per-game data was saved. Finished settings: control 8.4
+            (median 6.0); 3x8 228.8 +- 30.7 (27.2x, median 158.0, 4.91
+            ms/move); 4x8 902.0 +- 127.9 (107.1x, median 598.5, 4/200
+            capped, 6.87 ms/move). At width 8, preview 4 is 3.9x preview 3
+            (at width 4 it was 2.8x), so 4x8 games are much longer than 4x4
+            and 5x8 needs well over 14 minutes for 200 games.
+
+32. Preview 5 at width 8, combined with entry 31
+   Script:  cd tetris-base && python3 benchmark.py --rows 4 --games 200 --cap 10000
+            --settings 5x8 --csv ../experiments/results/32_preview5_width8.csv
+   Date:    2026-11-22
+   Does:    Plays the control and 5x8 on the same seeds (0-199), board (4
+            rows) and cap (10000) as entry 31, which was stopped before 5x8
+            finished. Output in results/32_preview5_width8.txt; combined
+            table with entry 31 in results/31_32_previews_width8_combined.txt.
+   Tests:   Whether preview 5 adds much over preview 4 at width 8 (entry 30
+            found no significant gain at width 4).
+   Result:  Control 8.4 (identical to entry 31, so same pieces). 5x8 >=
+            1987.2 +- 192.1 mean lines, median 1787.0, 39/200 capped, 9.05
+            ms/move. Combined, width 8: 3x8 228.8, 4x8 902.0, 5x8 >= 1987.2
+            (27x / 107x / >= 236x the control). Preview 5 is >= 2.2x preview 4
+            and the 95% CIs do not overlap (4x8 up to 1029.9, 5x8 from
+            1795.1); no per-seed test, since entry 31 saved no per-game data.
+            At width 4 the same step was 1.5x and not significant, so entry
+            30's flattening came from the narrow beam. 14m01s.

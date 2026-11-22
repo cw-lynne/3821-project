@@ -396,7 +396,7 @@ up the data collection process.
 ## Further analysis
 
 These experiments extend the design choices above. Each is logged in
-`experiments/log.txt` (entries 26-29) with its script and full output in
+`experiments/log.txt` (entries 26-32) with its script and full output in
 `experiments/results/`. All use final scoring and seeds starting at 0.
 
 ### Merging duplicate boards at larger beam widths
@@ -552,3 +552,75 @@ reach the 20000 cap, so its true mean is higher again. At the higher cap,
 Misakamm and BCTS are still not significantly different at 3x8 (Misakamm
 clears more on 22 seeds and fewer on 26, p = 0.67). The 2x8 results are now
 complete: no 5-row game at preview 2 reaches 20000 pieces.
+
+### Preview length: 4 and 5 pieces
+
+Previews of 4 and 5 pieces make games so long that a 5-row board caps nearly
+every game, so these runs use a 4-row board. A first run at beam width 4 (50
+games, cap 5000, about 1.5 minutes):
+
+    python3 benchmark.py --rows 4 --games 50 --cap 5000 --settings 1x4 2x4 3x4 4x4 5x4
+
+A second run at width 8 (200 games, cap 10000). It was split in two because
+the 5x8 games need about 14 minutes on their own; both parts play the same
+seeds, and their controls are identical:
+
+    python3 benchmark.py --rows 4 --games 200 --cap 10000 --settings 3x8 4x8
+    python3 benchmark.py --rows 4 --games 200 --cap 10000 --settings 5x8
+
+Previews 1 and 2 at width 8 come from the board height runs above (100
+games, cap 20000). Mean lines cleared on 4 rows (capped games in brackets):
+
+| Preview | Width 4 (50 games) | Gain over one fewer | Width 8 | Gain over one fewer | ms/move at width 8 |
+|---|---|---|---|---|---|
+| 0 | 9.1 | - | 8.4 | - | 0.30 |
+| 1 | 21.3 | 2.3x | 20.4 | 2.4x | - |
+| 2 | 56.3 | 2.6x | 65.7 | 3.2x | - |
+| 3 | 169.5 | 3.0x | 228.8 | 3.5x | 4.91 |
+| 4 | 475.7 (1/50) | 2.8x | 902.0 (4/200) | 3.9x | 6.87 |
+| 5 | >= 700.1 (5/50) | >= 1.5x | >= 1987.2 (39/200) | >= 2.2x | 9.05 |
+
+At width 4 the step from 4 to 5 preview pieces is small and not significant
+per seed (5 beats 4 on 28 seeds and loses on 22, p = 0.48), while every
+earlier step is (p < 0.01). At width 8 the same step is at least 2.2x, and
+the 95% confidence intervals of 4x8 (up to 1029.9) and 5x8 (from 1795.1) do
+not overlap. The flattening at width 4 therefore comes from the narrow beam:
+with only 4 lines kept after each piece, a 5-piece search loses most of what
+it could gain. A deeper preview needs a wide enough beam to pay off.
+
+### An approximation for preview length
+
+With a wide enough beam, each extra preview piece multiplies lines cleared by
+a roughly constant factor, so lines cleared grow exponentially with the
+preview length N. A least-squares fit of log(lines) against N for Misakamm at
+width 8 gives:
+
+| Board | Fitted on | Fit | Predicted next preview | Measured |
+|---|---|---|---|---|
+| 4 rows | previews 0-4 | lines ~ 7.1 x 3.24^N | 2551 at N = 5 | >= 1987.2 (39/200 capped) |
+| 5 rows | previews 0-2 | lines ~ 29.3 x 5.22^N | 4175 at N = 3 | >= 4220.6 (14/50 capped) |
+
+Both fits predict a setting they were not fitted on, within what the capped
+results allow. A likely explanation for the exponential form: since lines
+cleared is fixed at about 0.4 per piece, lines measure how many pieces the AI
+survives, and a game ends when the AI meets a run of pieces it cannot place
+safely. If each extra known piece reduces the chance of that, per piece, by a
+roughly constant factor, game length grows by that factor for every preview
+piece.
+
+The approximation has limits:
+
+- The factor is smaller for the first preview piece and grows a little with
+  each step (2.4x, 3.2x, 3.5x, 3.9x on 4 rows), since with one preview piece
+  the beam only acts on the last piece.
+- The factor grows with board height (about 3.2x on 4 rows, 5.2x on 5 rows),
+  so it cannot be carried over to taller boards. For comparison, an extra row
+  of board without a preview multiplies lines by about 3.5x (8.6, 31.5 and
+  107.4 lines on 4, 5 and 6 rows): one preview piece is worth about one row on
+  4 rows and more than one on 5.
+- It holds only while the beam is wide enough, as the width 4 results show.
+- The fits rest on 3-5 points each, the highest preview at each height is a
+  lower bound, and each point is a single run of 100-200 games.
+
+The cost of a preview grows linearly instead: at width 8, each extra preview
+piece adds about 2 ms per move.

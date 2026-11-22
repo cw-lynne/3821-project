@@ -1,0 +1,12 @@
+Misakamm, 4-row board, beam width 8, final scoring, seeds 0-199, cap 10000 pieces.
+Control, 3x8 and 4x8 from entry 31; 5x8 from entry 32 (same seeds and cap; both
+runs' controls are identical, 8.4 lines).
+
+setting                         mean lines    95% CI   median vs control  ms/move  capped
+-----------------------------------------------------------------------------------------
+no preview (control)                   8.4      ±1.2      6.0       1.0x     0.30   0/200
+preview 3, width 8, final            228.8     ±30.7    158.0      27.2x     4.91   0/200
+preview 4, width 8, final            902.0    ±127.9    598.5     107.1x     6.87   4/200
+preview 5, width 8, final           1987.2    ±192.1   1787.0     235.9x     9.05  39/200
+
+5x8 is a lower bound (39 games capped).
