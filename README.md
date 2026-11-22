@@ -396,7 +396,7 @@ up the data collection process.
 ## Further analysis
 
 These experiments extend the design choices above. Each is logged in
-`experiments/log.txt` (entries 26-28) with its script and full output in
+`experiments/log.txt` (entries 26-29) with its script and full output in
 `experiments/results/`. All use final scoring and seeds starting at 0.
 
 ### Merging duplicate boards at larger beam widths
@@ -419,8 +419,51 @@ significant at any width; the unmerged search is slightly ahead on the means,
 but within chance. Duplicates make up only 1-3% of the kept lines at every
 width, so the cost of a duplicate depends on the beam size: at width 2 one
 duplicate removes half the beam, while at width 32 it removes one line in 32.
-The larger widths do not reveal a hidden effect of merging, and merging costs
-no time, so it is kept.
+
+To find out whether merging really makes the search worse at larger widths, a
+second test compares single decisions instead of whole games
+(`python3 experiments/merge_disagreements.py 33 220 2 8 32`, about 13
+minutes). Misakamm plays 33 games, and at every move the unmerged search is
+also asked for its choice on the same board and queue. At positions where the
+two choose differently, both moves are played from a copy of the game, and
+both copies continue with the same AI until game over, with the same pieces:
+
+| Width | Moves where merging changes the choice | Merged move leads to more / fewer lines | Sign test p | Same, where merging found a higher-scoring line | Same, where the scores were equal |
+|---|---|---|---|---|---|
+| 2 | 1.66% | 65 / 47 | 0.11 | 46 / 27 (p = 0.03) | 19 / 19 |
+| 8 | 0.60% | 71 / 70 | 1.00 | 46 / 48 | 25 / 22 |
+| 32 | 0.12% | 21 / 18 | 0.75 | 17 / 16 | 4 / 2 |
+
+(220 positions sampled at widths 2 and 8, all 50 found at width 32.)
+
+Three possible causes of a harmful merge were checked:
+
+- The first move kept for a merged board. When two first moves lead to the
+  same board, the merge keeps the one that wins the tie-break and ignores the
+  board each first move leaves behind, even though the AI searches again next
+  turn with a new piece visible. About 40% of the disagreements are of this
+  kind (equal best scores, different first move), but these moves do as well
+  as the unmerged ones at every width, so this rule does no harm.
+- Lines that score higher but play worse. The slots freed by merging can
+  hold lines that the evaluation rates higher. At width 2 these lines really
+  are better (46 / 27). From width 8 they are no better or worse in play,
+  and the size of the score gain does not predict the result (rank
+  correlation -0.02 at width 8). Past this point the evaluation cannot tell
+  apart the extra lines found, which matches the flat results for widths
+  8-32 in the table above. The extra lines do not hurt, though.
+- Noise. Merging changes 1 move in 170 at width 8 and 1 in 830 at width 32,
+  and a single different move largely decides the rest of the game: from the
+  same position, the two continuations' lines have a rank correlation of
+  only 0.34 at width 8 and 0.15 at width 32. Each game in the comparison above
+  is therefore close to an independent draw. For 2x8, the difference between
+  two 100-game means of independent games has a standard deviation of about
+  93 lines, larger than every gap in the table above (20-74 lines), and the
+  unmerged search coming out ahead at all four widths happens by chance with
+  probability 0.125.
+
+The slightly higher unmerged results are therefore noise. Merging never makes
+the decisions worse, it clearly helps at width 2, and it costs no time, so it
+is kept.
 
 ### Board height
 

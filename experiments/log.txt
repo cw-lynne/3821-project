@@ -457,3 +457,46 @@ session's results. Entries from 11 onwards were logged as they were run.
             misakamm vs bcts 3x8: misakamm better on 22 seeds, worse on 26,
             p = 0.665 (no significant difference). ms/move 6.50 and 14.24.
             19m16s.
+
+29. Merging vs not merging at the level of single decisions
+   Script:  experiments/merge_disagreements.py 33 220 2 8 32
+   Date:    2026-11-22
+   Does:    Phase 1: plays Misakamm (merged, preview 2, final scoring, 5
+            rows) on seeds 0-32, cap 2000 pieces, and at every move also asks
+            an unmerged copy of the search for its choice on the same board
+            and queue (not played). Records each position where they differ
+            and both searches' best line scores. Phase 2: for a random sample
+            of up to 220 such positions per width, plays the merged move and
+            the unmerged move from a copy of the game, then continues both
+            with the merged AI to game over (cap 5000 pieces). Checked first
+            that the recording wrapper plays the same games as MisakammAi
+            (seeds 0-2). Output in results/29_merge_disagreements.txt/.csv.
+   Tests:   Why entry 26 has the unmerged search slightly (not
+            significantly) ahead from width 4 up. Candidate causes: merging
+            gives a merged board the tie-break winner's first move, ignoring
+            the board after that move; the extra beam slots find lines that
+            score higher but play worse (evaluation exploitation); or noise.
+   Result:  Moves where the two searches choose differently: width 2 1.66%,
+            width 8 0.60%, width 32 0.12% (481 / 287 / 50 positions). In
+            those, the merged best line scores higher in 53% / 61% / 78% and
+            equal in 46% / 39% / 22% (lower in 4 / 0 / 0).
+            Rollouts (merged move better / worse / same, sign test p):
+            width 2:  all 65 / 47 / 108, p = 0.108; higher-scoring 46 / 27,
+                      p = 0.034; equal score 19 / 19, p = 1.000
+            width 8:  all 71 / 70 / 79, p = 1.000; higher-scoring 46 / 48,
+                      p = 0.918; equal score 25 / 22, p = 0.771
+            width 32: all 21 / 18 / 11, p = 0.749; higher-scoring 17 / 16;
+                      equal score 4 / 2
+            P(merged move better | outcomes differ): 0.58 +- 0.09, 0.50 +-
+            0.08, 0.54 +- 0.16. Spearman between the two rollouts from the
+            same position: 0.47, 0.34, 0.15; between score gap and line
+            difference: 0.16, -0.02, 0.06.
+            Conclusions: merging does not make decisions worse at any width.
+            Ties broken differently are neutral at every width, so the
+            first-move rule is not the cause. At width 2 the extra slot finds
+            better lines; from width 8 the higher-scoring lines it finds are
+            no better in play. One different move largely decorrelates the
+            rest of the game, so entry 26's game-level gaps (20-74 lines,
+            against an expected noise sd of about 93 for two 100-game means
+            at 2x8) are noise; unmerged ahead at all 4 widths has two-sided
+            chance probability 0.125. 12m58s.
