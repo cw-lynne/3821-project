@@ -1,0 +1,7 @@
+rows 5, 100 games (seeds 0-99), cap 5000, preview 2, final scoring
+width  merge mean  no-merge mean  merge med  no-merge med  merge better  worse      p  distinct kept  ms/move    capped
+    2       288.1          209.6      183.0         143.5            57     30  0.005          98.8%     1.75       0/0
+    4       701.6          759.1      578.5         533.5            50     49  1.000          98.2%     3.02       3/8
+    8       792.4          830.8      608.0         583.0            39     53  0.175          97.9%     4.55     11/17
+   16       646.9          720.6      452.5         621.0            31     41  0.289          97.4%     7.78       5/9
+   32       787.9          807.5      525.5         656.5            32     38  0.550          96.9%    12.73      13/7

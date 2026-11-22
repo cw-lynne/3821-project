@@ -370,3 +370,192 @@ session's results. Entries from 11 onwards were logged as they were run.
             0.070, 0.688, 0.326 (no significant difference). Misakamm and
             bcts each beat el-tetris at every preview (p <= 0.001; at 3x8
             95/100 and 97/100 seeds). 22m00s.
+
+26. Merging vs not merging duplicate boards, across beam widths
+   Script:  experiments/merge_by_width.py 100 2 4 8 16 32
+   Date:    2026-11-22
+   Does:    Plays Misakamm at preview 2, final scoring, beam widths 2, 4, 8,
+            16 and 32, with the normal beam search and with a copy that skips
+            merging (keeps the top K lines, duplicates included), on seeds
+            0-99, 5-row board, cap 5000. The no-merge copy also counts how
+            many of the K lines it keeps (before the last piece) are
+            distinct boards. Output in results/26_merge_by_width.txt.
+   Tests:   Whether the effect of merging (helps at width 2, nothing
+            significant at width 8 in entry 11) changes at larger widths.
+   Result:  width: merged vs unmerged mean lines (median); merging better /
+            worse per seed, sign test p; distinct boards kept without merging:
+            2:  288.1 vs 209.6 (183.0 vs 143.5); 57 / 30, p = 0.005; 98.8%
+            4:  701.6 vs 759.1 (578.5 vs 533.5); 50 / 49, p = 1.000; 98.2%
+            8:  792.4 vs 830.8 (608.0 vs 583.0); 39 / 53, p = 0.175; 97.9%
+            16: 646.9 vs 720.6 (452.5 vs 621.0); 31 / 41, p = 0.289; 97.4%
+            32: 787.9 vs 807.5 (525.5 vs 656.5); 32 / 38, p = 0.550; 96.9%
+            Capped (merged/unmerged): 0/0, 3/8, 11/17, 5/9, 13/7. Merging
+            only helps at width 2; from width 4 up there is no significant
+            difference (unmerged is slightly ahead on means, not
+            significantly). Duplicates are rare at every width (1-3% of kept
+            lines), so they cost a lot only when the beam is tiny: at width 2
+            one duplicate halves the beam. Time per move is unchanged. 17m50s.
+
+27. Board height and stack height sweep
+   Script:  experiments/height_sweep.py --rows 4 5 --games 100
+              --csv experiments/results/27_height_sweep_4_5.csv
+            experiments/height_sweep.py --rows 6 --games 50
+              --csv experiments/results/27_height_sweep_6.csv
+            (defaults: --ai misakamm bcts el-tetris --previews 0 1 2
+            --width 8 --cap 20000; final scoring)
+   Date:    2026-11-22
+   Does:    Plays every AI at previews 0, 1, 2 on 4- and 5-row boards (seeds
+            0-99) and 6-row boards (seeds 0-49, to fit the time budget), cap
+            20000, recording column heights after every placement: average
+            max column height, average column height, and share of moves with
+            the stack within one row of the top. Output in
+            results/27_height_sweep.txt.
+   Tests:   How each AI and preview length scales with board height, how the
+            higher cap changes the capped 5-row results, and whether stronger
+            settings keep the stack lower.
+   Result:  Mean lines, previews 0 / 1 / 2:
+            misakamm   4 rows 8.6 / 20.4 / 65.7;   5 rows 31.5 / 133.0 / 858.4;
+                       6 rows 107.4 / 1073.6 / >= 5266.6 (19/50 capped)
+            bcts       4 rows 7.8 / 20.4 / 81.7;   5 rows 30.8 / 101.6 / 916.2;
+                       6 rows 76.5 / 567.4 / >= 4772.1 (17/50 capped)
+            el-tetris  4 rows 3.7 / 4.3 / 10.8;    5 rows 16.6 / 26.7 / 62.2;
+                       6 rows 40.3 / 135.5 / 580.5
+            No 4- or 5-row game reached the cap. With cap 20000, 5-row 2x8
+            rises from 792.4 to 858.4 (misakamm) and 796.5 to 916.2 (bcts);
+            the gains from a preview grow with height (misakamm 2x8 vs no
+            preview: 7.6x at 4 rows, 27x at 5, >= 49x at 6).
+            Stack height (avg max height; avg column height; % moves near
+            top), previews 0 / 1 / 2, 5 rows:
+            misakamm   3.67 / 3.71 / 3.61; 1.99 / 1.95 / 1.85; 58 / 60 / 56%
+            bcts       3.58 / 3.72 / 3.63; 1.97 / 1.96 / 1.85; 56 / 60 / 56%
+            el-tetris  3.54 / 3.72 / 3.77; 1.97 / 2.11 / 2.11; 50 / 57 / 59%
+            The same pattern holds at 4 and 6 rows: a preview multiplies lines
+            cleared many times over while the stack's height barely changes
+            (average column height falls 5-10% for misakamm and bcts, rises
+            for el-tetris). Across board heights the stack's max height grows
+            about 0.5 rows per row of board, so the share of the board used
+            falls (max h / rows about 0.78 at 4 rows, 0.73 at 5, 0.69 at 6).
+            27m35s.
+
+28. 3x8 with a 20000-piece cap
+   Script:  cd tetris-base && python3 benchmark.py --ai misakamm bcts --games 50
+            --cap 20000 --settings 3x8
+            --csv ../experiments/results/28_3x8_cap20000.csv
+   Date:    2026-11-22
+   Does:    Plays misakamm and bcts at 3x8 (final scoring) and their controls
+            on seeds 0-49, 5-row board, cap 20000 pieces (at most 8000 lines)
+            instead of 5000. Output in results/28_3x8_cap20000.txt; compared
+            with the same seeds of entry 25 (cap 5000) and a paired sign test
+            from the CSVs.
+   Tests:   How much the 5000 cap understated 3x8, where about 72% of games
+            hit it.
+   Result:  misakamm 3x8: >= 4220.6 +- 804.9 mean lines, median 3781.5, 14/50
+            capped (cap 5000, same seeds: 1668.7, 37/50 capped). bcts 3x8:
+            >= 4401.2 +- 776.2, median 4089.0, 11/50 capped (cap 5000:
+            1767.5, 35/50). Controls 30.0 and 35.0. The 5000 cap hid more
+            than half of 3x8's lines; the true means are higher still.
+            misakamm vs bcts 3x8: misakamm better on 22 seeds, worse on 26,
+            p = 0.665 (no significant difference). ms/move 6.50 and 14.24.
+            19m16s.
+
+29. Merging vs not merging at the level of single decisions
+   Script:  experiments/merge_disagreements.py 33 220 2 8 32
+   Date:    2026-11-22
+   Does:    Phase 1: plays Misakamm (merged, preview 2, final scoring, 5
+            rows) on seeds 0-32, cap 2000 pieces, and at every move also asks
+            an unmerged copy of the search for its choice on the same board
+            and queue (not played). Records each position where they differ
+            and both searches' best line scores. Phase 2: for a random sample
+            of up to 220 such positions per width, plays the merged move and
+            the unmerged move from a copy of the game, then continues both
+            with the merged AI to game over (cap 5000 pieces). Checked first
+            that the recording wrapper plays the same games as MisakammAi
+            (seeds 0-2). Output in results/29_merge_disagreements.txt/.csv.
+   Tests:   Why entry 26 has the unmerged search slightly (not
+            significantly) ahead from width 4 up. Candidate causes: merging
+            gives a merged board the tie-break winner's first move, ignoring
+            the board after that move; the extra beam slots find lines that
+            score higher but play worse (evaluation exploitation); or noise.
+   Result:  Moves where the two searches choose differently: width 2 1.66%,
+            width 8 0.60%, width 32 0.12% (481 / 287 / 50 positions). In
+            those, the merged best line scores higher in 53% / 61% / 78% and
+            equal in 46% / 39% / 22% (lower in 4 / 0 / 0).
+            Rollouts (merged move better / worse / same, sign test p):
+            width 2:  all 65 / 47 / 108, p = 0.108; higher-scoring 46 / 27,
+                      p = 0.034; equal score 19 / 19, p = 1.000
+            width 8:  all 71 / 70 / 79, p = 1.000; higher-scoring 46 / 48,
+                      p = 0.918; equal score 25 / 22, p = 0.771
+            width 32: all 21 / 18 / 11, p = 0.749; higher-scoring 17 / 16;
+                      equal score 4 / 2
+            P(merged move better | outcomes differ): 0.58 +- 0.09, 0.50 +-
+            0.08, 0.54 +- 0.16. Spearman between the two rollouts from the
+            same position: 0.47, 0.34, 0.15; between score gap and line
+            difference: 0.16, -0.02, 0.06.
+            Conclusions: merging does not make decisions worse at any width.
+            Ties broken differently are neutral at every width, so the
+            first-move rule is not the cause. At width 2 the extra slot finds
+            better lines; from width 8 the higher-scoring lines it finds are
+            no better in play. One different move largely decorrelates the
+            rest of the game, so entry 26's game-level gaps (20-74 lines,
+            against an expected noise sd of about 93 for two 100-game means
+            at 2x8) are noise; unmerged ahead at all 4 widths has two-sided
+            chance probability 0.125. 12m58s.
+
+30. Previews 1-5 at width 4 (preliminary)
+   Script:  cd tetris-base && python3 benchmark.py --rows 4 --games 50 --cap 5000
+            --settings 1x4 2x4 3x4 4x4 5x4
+            --csv ../experiments/results/30_previews_1_to_5.csv
+   Date:    2026-11-22
+   Does:    Plays Misakamm with no preview and with previews 1-5 at beam
+            width 4 (final scoring) on seeds 0-49, 4-row board (5 rows would
+            cap nearly every game at previews 4-5), cap 5000. Sign tests
+            between consecutive previews computed from the CSV. Output in
+            results/30_previews_1_to_5.txt.
+   Tests:   A fast first look at how much previews 4 and 5 add.
+   Result:  Mean lines (vs control; median; capped): control 9.1; preview 1
+            21.3 (2.3x; 13.0); 2 56.3 (6.2x; 32.0); 3 169.5 (18.7x; 151.0);
+            4 475.7 (52.5x; 299.5; 1/50); 5 >= 700.1 (77.3x; 616.5; 5/50).
+            Each preview vs the one before (better / worse, p): 1 vs 0 34/15,
+            0.0094; 2 vs 1 39/9, 1.5e-05; 3 vs 2 40/10, 2.4e-05; 4 vs 3
+            39/10, 3.8e-05; 5 vs 4 28/22, 0.48. Each preview up to 4 roughly
+            triples lines cleared (x2.3, x2.6, x3.0, x2.8); preview 5 adds
+            x1.5 on the mean and is not significantly better than 4 per seed.
+            Preliminary: 50 games, width 4 only, 5 preview-5 games capped.
+            ms/move 0.27 / 1.04 / 1.74 / 2.63 / 3.52 / 4.77. 1m19s.
+
+31. Previews 3-5 at width 8 (stopped by the time limit)
+   Script:  cd tetris-base && timeout 1200 python3 benchmark.py --rows 4 --games 200
+            --cap 10000 --settings 3x8 4x8 5x8
+            --csv ../experiments/results/31_previews_3_to_5_width8.csv
+   Date:    2026-11-22
+   Does:    Plays Misakamm with no preview and previews 3, 4, 5 at beam width
+            8 (final scoring) on seeds 0-199, 4-row board, cap 10000, with a
+            20-minute limit. Output in results/31_previews_3_to_5_width8.txt.
+   Tests:   Whether entry 30's flattening at preview 5 is real or caused by
+            the narrow width 4 and the small sample.
+   Result:  Stopped at 20m00s during 5x8; the CSV is written only at the end,
+            so no per-game data was saved. Finished settings: control 8.4
+            (median 6.0); 3x8 228.8 +- 30.7 (27.2x, median 158.0, 4.91
+            ms/move); 4x8 902.0 +- 127.9 (107.1x, median 598.5, 4/200
+            capped, 6.87 ms/move). At width 8, preview 4 is 3.9x preview 3
+            (at width 4 it was 2.8x), so 4x8 games are much longer than 4x4
+            and 5x8 needs well over 14 minutes for 200 games.
+
+32. Preview 5 at width 8, combined with entry 31
+   Script:  cd tetris-base && python3 benchmark.py --rows 4 --games 200 --cap 10000
+            --settings 5x8 --csv ../experiments/results/32_preview5_width8.csv
+   Date:    2026-11-22
+   Does:    Plays the control and 5x8 on the same seeds (0-199), board (4
+            rows) and cap (10000) as entry 31, which was stopped before 5x8
+            finished. Output in results/32_preview5_width8.txt; combined
+            table with entry 31 in results/31_32_previews_width8_combined.txt.
+   Tests:   Whether preview 5 adds much over preview 4 at width 8 (entry 30
+            found no significant gain at width 4).
+   Result:  Control 8.4 (identical to entry 31, so same pieces). 5x8 >=
+            1987.2 +- 192.1 mean lines, median 1787.0, 39/200 capped, 9.05
+            ms/move. Combined, width 8: 3x8 228.8, 4x8 902.0, 5x8 >= 1987.2
+            (27x / 107x / >= 236x the control). Preview 5 is >= 2.2x preview 4
+            and the 95% CIs do not overlap (4x8 up to 1029.9, 5x8 from
+            1795.1); no per-seed test, since entry 31 saved no per-game data.
+            At width 4 the same step was 1.5x and not significant, so entry
+            30's flattening came from the narrow beam. 14m01s.

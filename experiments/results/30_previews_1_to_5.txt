@@ -1,0 +1,14 @@
+Board 4x10, 50 games per setting (seeds 0-49), cap 5000 pieces, 11 workers
+
+setting                         mean lines    95% CI   median vs control  ms/move  capped
+-----------------------------------------------------------------------------------------
+no preview (control)                   9.1      ±2.2      7.0       1.0x     0.27   0/50
+preview 1, width 4, final             21.3      ±5.4     13.0       2.3x     1.04   0/50
+preview 2, width 4, final             56.3     ±15.0     32.0       6.2x     1.74   0/50
+preview 3, width 4, final            169.5     ±34.0    151.0      18.7x     2.63   0/50
+preview 4, width 4, final            475.7    ±123.7    299.5      52.5x     3.52   1/50
+preview 5, width 4, final            700.1    ±165.2    616.5      77.3x     4.77   5/50
+
+Capped games stopped early, so those settings' lines are lower bounds; raise --cap or lower --rows to measure them fully.
+
+Wrote 300 games to ../experiments/results/30_previews_1_to_5.csv

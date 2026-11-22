@@ -1,0 +1,24 @@
+rows 5, preview 2, final scoring; phase 1: 33 games (seeds 0-32), cap 2000 pieces; phase 2: 220 sampled positions, rollouts to game over or 5000 pieces
+
+width 2: 481 disagreements in 29044 moves (1.66%); merged best line scores higher in 254, equal in 223, lower in 4
+  rollouts: 220 positions, 0/440 rollouts capped
+    all (n=220): mean lines after merged move 325.3, after unmerged move 288.6; merged better 65, worse 47, same 108, p = 0.108
+    merged line scores higher (n=112): mean lines after merged move 362.4, after unmerged move 292.8; merged better 46, worse 27, same 39, p = 0.034
+    scores equal (tie broken differently) (n=106): mean lines after merged move 287.2, after unmerged move 283.9; merged better 19, worse 19, same 68, p = 1.000
+    Spearman between the two rollouts' lines: 0.47; between score gap and line difference: 0.16
+
+width 8: 287 disagreements in 47903 moves (0.60%); merged best line scores higher in 176, equal in 111, lower in 0
+  rollouts: 220 positions, 55/440 rollouts capped
+    all (n=220): mean lines after merged move 753.5, after unmerged move 766.2; merged better 71, worse 70, same 79, p = 1.000
+    merged line scores higher (n=139): mean lines after merged move 768.4, after unmerged move 795.8; merged better 46, worse 48, same 45, p = 0.918
+    scores equal (tie broken differently) (n=81): mean lines after merged move 728.1, after unmerged move 715.3; merged better 25, worse 22, same 34, p = 0.771
+    Spearman between the two rollouts' lines: 0.34; between score gap and line difference: -0.02
+
+width 32: 50 disagreements in 41995 moves (0.12%); merged best line scores higher in 39, equal in 11, lower in 0
+  rollouts: 50 positions, 9/100 rollouts capped
+    all (n=50): mean lines after merged move 684.0, after unmerged move 687.2; merged better 21, worse 18, same 11, p = 0.749
+    merged line scores higher (n=39): mean lines after merged move 662.1, after unmerged move 606.0; merged better 17, worse 16, same 6, p = 1.000
+    scores equal (tie broken differently) (n=11): mean lines after merged move 761.6, after unmerged move 975.1; merged better 4, worse 2, same 5, p = 0.688
+    Spearman between the two rollouts' lines: 0.15; between score gap and line difference: 0.06
+
+Wrote 490 positions to /home/haya/Projects/3821-project/experiments/results/29_merge_disagreements.csv
