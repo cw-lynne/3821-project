@@ -1,9 +1,21 @@
 # 3821-project
 
-A Python port of Misakamm's C++ Tetris AI
-(https://github.com/misakamm/tetr-ai), plus an optional beam search that lets
-the AI see upcoming pieces. This README explains how to reproduce the
-benchmarks for the plain AI and for the AI with a piece preview.
+Tetris AIs that use a preview of upcoming pieces. The project contains a
+Python port of Misakamm's C++ Tetris AI (https://github.com/misakamm/tetr-ai),
+which plays exactly like the C++, two other published controllers (BCTS by
+Thiery & Scherrer, and El-Tetris by El-Ashi), and a beam search shared by all
+three that lets them search over the next N pieces.
+
+This README explains how to reproduce the benchmarks:
+
+1. Plain Misakamm (no preview), checked against the C++.
+2. Misakamm with a piece preview.
+3. All three AIs with a preview.
+
+It then explains the design choices behind the benchmark and the search, and
+the further analysis built on them. Every experiment is logged in
+`experiments/log.txt`, with its script in `experiments/` and its output in
+`experiments/results/`.
 
 ## Setup
 
@@ -116,6 +128,38 @@ If a setting has capped games, its numbers are lower bounds. Raise `--cap` or
 lower `--rows` to measure it fully. Lines cleared varies a lot from game to
 game, so use 100 or more games per setting.
 
+## 3. All three AIs with a preview
+
+    python3 benchmark.py --ai misakamm bcts el-tetris --games 100 --settings 1x8 2x8 3x8
+
+This runs each AI with no preview and with 1, 2 and 3 preview pieces (width 8,
+`final` scoring) on the same seeds as section 2. Each AI is compared with its
+own control. It takes about 22 minutes on 11 cores. Expected output:
+
+    setting                         mean lines    95% CI   median vs control  ms/move  capped
+    -----------------------------------------------------------------------------------------
+    misakamm
+    no preview (control)                  31.5      ±5.1     25.5       1.0x     0.36   0/100
+    preview 1, width 8, final            133.0     ±23.6     90.5       4.2x     2.30   0/100
+    preview 2, width 8, final            792.4    ±128.9    608.0      25.1x     4.63  11/100
+    preview 3, width 8, final           1709.0    ±109.9   1998.0      54.2x     7.48  73/100
+    bcts
+    no preview (control)                  30.8      ±5.8     27.0       1.0x     0.86   0/100
+    preview 1, width 8, final            101.6     ±21.0     65.0       3.3x     5.20   0/100
+    preview 2, width 8, final            796.5    ±124.8    617.0      25.9x    10.18   9/100
+    preview 3, width 8, final           1743.9     ±97.8   1998.0      56.6x    15.72  72/100
+    el-tetris
+    no preview (control)                  16.6      ±3.3     12.0       1.0x     0.31   0/100
+    preview 1, width 8, final             26.7      ±5.3     17.5       1.6x     2.01   0/100
+    preview 2, width 8, final             62.2     ±11.3     44.5       3.7x     4.05   0/100
+    preview 3, width 8, final            325.2     ±71.5    173.0      19.6x     6.32   1/100
+
+Misakamm and BCTS are not significantly different at any preview length
+(paired sign tests, p = 0.07 to 0.84). Both beat El-Tetris at every preview
+length (p <= 0.001; at 3x8 on 95 and 97 of 100 seeds), and El-Tetris gains
+the least from a preview. BCTS takes about twice as long per move as the
+other two.
+
 ## Notes
 
 - Rules: the C++ survival rules. Pieces spawn above the board, only hard drops
@@ -145,7 +189,11 @@ game, so use 100 or more games per setting.
   them in `from_args`.
 - Files: `main.py` (command line), `tetris_base.py` (game), `pcg.py` (piece
   generator), `viewer.py`, `benchmark.py`, `init_comparison.py`, and
-  `ais/` (the AIs and shared bitboard helpers).
+  `ais/` (the AIs and shared bitboard helpers). `benchmarkbcts.py` and
+  `benchmarkeltetris.py` are earlier single-AI copies of `benchmark.py`, which
+  now covers every AI with `--ai`. `experiments/` holds the analysis scripts,
+  `log.txt` (what each run did, what it tested and its result) and
+  `results/`.
 
 ## Design choices
 
@@ -163,7 +211,8 @@ lines as the plain AI on 5 rows.
 Python is about 54 times slower than the C++, and with a preview each move
 takes several milliseconds (7 ms for 3x8). The first benchmark used a
 200,000-piece cap and did not finish in a practical time, and a 5-piece
-preview setting did not finish within a 10-minute limit. On 5 rows, most games
+preview setting did not finish within a 10-minute limit on 5 rows (it was later
+measured on 4 rows, under "Further analysis"). On 5 rows, most games
 with a short preview end on their own within seconds, so the results measure
 complete games rather than games cut off by the cap. On taller boards the
 stronger settings would hit the cap in nearly every game, and their results
@@ -285,9 +334,10 @@ gain at narrow widths at no measurable cost at the default width. Widths up to
 
 ### Multi Piece Evaluation Modes (Sum and Final)
 
-Beam search scores each placement with Misakamm's evaluation function
-(`MisakammAi._evaluate` in `ais/misakamm.py`), the same one the C++ AI uses
-to choose its move. With a preview, a line of play contains several
+Beam search scores each placement with the AI's own evaluation function: for
+Misakamm, `MisakammAi._evaluate` in `ais/misakamm.py`, the same one the C++ AI
+uses to choose its move (BCTS and El-Tetris use theirs). The tables in this
+section are for Misakamm. With a preview, a line of play contains several
 placements, so the search also needs a rule for combining their evaluations
 into one score for the line. That rule decides how the extra information is
 used, which is why both options are kept and compared.
@@ -388,23 +438,49 @@ reported separately from the C++ results.
 
 ### Workers: CPU count - 1
 
-Games are independent, so they run in parallel, one per process. One core is
-left free so the computer stays usable during a long run. Results do not
-depend on the number of workers; only the run time does. This is done to speed 
-up the data collection process.
+Games are independent, so they run in parallel, one per process, which cuts
+the time of a run by about the number of cores. One core is left free so the
+computer stays usable during a long run. Results do not depend on the number of
+workers; only the run time does.
 
 ## Further analysis
 
 These experiments extend the design choices above. Each is logged in
-`experiments/log.txt` (entries 26-32) with its script and full output in
-`experiments/results/`. All use final scoring and seeds starting at 0.
+`experiments/log.txt` (entries 20-21 and 26-32) with its script and full
+output in `experiments/results/`. All use final scoring and seeds starting
+at 0.
+
+### Plain Misakamm and BCTS across board heights
+
+Without a preview, Misakamm and BCTS are tied on 5 rows, but Misakamm's lead
+grows with the board height (100 paired games per height, no cap;
+`python3 experiments/bcts_vs_misakamm_heights.py 100 5 6 7 8 9`, about 2
+minutes, and `python3 experiments/bcts_vs_misakamm_uncapped.py 50` for 10
+rows):
+
+| Rows | BCTS | Misakamm | Mean ratio | Misakamm better on | Sign test p |
+|---|---|---|---|---|---|
+| 5 | 30.8 | 31.5 | 1.02x | 51/100 | 0.84 |
+| 6 | 72.5 | 96.7 | 1.33x | 55/100 | 0.27 |
+| 7 | 213.9 | 257.9 | 1.21x | 55/100 | 0.37 |
+| 8 | 551.8 | 852.4 | 1.54x | 59/100 | 0.07 |
+| 9 | 1339.6 | 2235.3 | 1.67x | 65/100 | 0.004 |
+| 10 (50 games) | 3911.6 | 7292.4 | 1.86x | 30/50 | 0.20 |
+
+This matches the published 20-row records, where Misakamm (about 270 million
+lines) is far ahead of BCTS (about 35 million). On short boards both AIs lose
+to the same runs of bad pieces, which hides the difference between two strong
+evaluation functions, so the 5-row benchmark measures what the preview adds
+rather than ranking the base AIs.
 
 ### Merging duplicate boards at larger beam widths
 
 Misakamm at preview 2, 100 games on a 5-row board, cap 5000, run with and
 without merging (`python3 experiments/merge_by_width.py 100 2 4 8 16 32`,
 about 18 minutes). The last column is the share of the K lines kept by the
-unmerged search that are different boards:
+unmerged search, before the last piece, that are different boards. (The
+earlier "7.6 of 8" figure was measured differently: on the best 8 of the
+merged search's candidate lines, at every step after the first piece.)
 
 | Width | Merged | Not merged | Seeds where merging clears more / fewer lines | Sign test p | Different boards kept without merging |
 |---|---|---|---|---|---|
@@ -524,8 +600,9 @@ survives longer, and these results show that it survives without spending much
 less time near the top. A likely explanation is that the preview makes high
 positions safer: when the next pieces are known, the search only enters a high
 position if the queued pieces can be placed after it without topping out, so
-the stack can run high with less risk of being caught by an unknown piece. The plain AIs face
-the same heights but cannot tell which high positions they can recover from.
+the stack can run high with less risk of being caught by an unknown piece.
+The plain AIs face the same heights but cannot tell which high positions they
+can recover from.
 
 Across board heights, the highest column grows by only about half a row per
 extra row of board (average max height / rows: about 0.78 on 4 rows, 0.73 on
